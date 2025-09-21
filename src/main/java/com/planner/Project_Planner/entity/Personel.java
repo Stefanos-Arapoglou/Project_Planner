@@ -3,6 +3,10 @@ package com.planner.Project_Planner.entity;
 import jakarta.persistence.*;
 import lombok.Data;
 
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+
 
 @Data
 @Entity
@@ -15,4 +19,12 @@ public class Personel {
     private String personel_name;
     private String personel_surname;
     private String role;
+
+    @ManyToMany(mappedBy = "personel")
+    private Set<Projects> projects  = new HashSet<>();
+
+//    @OneToMany(mappedBy="personel", cascade=CascadeType.ALL)
+//    private List<Educations> education;
+
+
 }

@@ -4,6 +4,8 @@ import jakarta.persistence.*;
 import lombok.Data;
 
 import java.time.LocalDate;
+import java.util.HashSet;
+import java.util.Set;
 
 @Data
 @Entity
@@ -24,5 +26,22 @@ public class Projects {
     private String date_start;
     @Column(name = "date_end")
     private String date_end;
+
+    @ManyToMany
+    @JoinTable(
+            name="p_assignments",
+            joinColumns = @JoinColumn(name="project_id"),
+            inverseJoinColumns=@JoinColumn(name="personel_id")
+    )
+    private Set<Personel> personel  = new HashSet<>();
+
+//    @ManyToMany
+//    @JoinTable(
+//            name="v_assignments",
+//            joinColumns = @JoinColumn(name="project_id"),
+//            inverseJoinColumns=@JoinColumn(name="vehicle_id")
+//    )
+//    private Set<Vehicles> vehicles;
+
 
 }
