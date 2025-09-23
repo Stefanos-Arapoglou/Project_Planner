@@ -1,0 +1,38 @@
+package com.planner.Project_Planner.entity;
+
+import com.fasterxml.jackson.annotation.JsonBackReference;
+import com.fasterxml.jackson.annotation.JsonIdentityInfo;
+import com.fasterxml.jackson.annotation.ObjectIdGenerators;
+import jakarta.persistence.*;
+import lombok.*;
+
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+
+
+@Entity
+@AllArgsConstructor
+@Getter
+@Setter
+@NoArgsConstructor
+@JsonIdentityInfo(generator = ObjectIdGenerators.PropertyGenerator.class, property = "personel_id")
+@Table(name = "personel")
+public class Personel {
+    @Id
+    @Column(name="personel_id")
+    @GeneratedValue(strategy= GenerationType.IDENTITY)
+    private Long personel_id;
+    private String personel_name;
+    private String personel_surname;
+    private String role;
+
+    @ManyToMany(mappedBy = "personel")
+    @JsonBackReference
+    private Set<Projects> projects = new HashSet<>();
+
+//    @OneToMany(mappedBy="personel", cascade=CascadeType.ALL)
+//    private List<Educations> education;
+
+
+}
