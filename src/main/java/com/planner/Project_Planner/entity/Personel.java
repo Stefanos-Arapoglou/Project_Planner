@@ -1,15 +1,22 @@
 package com.planner.Project_Planner.entity;
 
+import com.fasterxml.jackson.annotation.JsonBackReference;
+import com.fasterxml.jackson.annotation.JsonIdentityInfo;
+import com.fasterxml.jackson.annotation.ObjectIdGenerators;
 import jakarta.persistence.*;
-import lombok.Data;
+import lombok.*;
 
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
 
-@Data
 @Entity
+@AllArgsConstructor
+@Getter
+@Setter
+@NoArgsConstructor
+@JsonIdentityInfo(generator = ObjectIdGenerators.PropertyGenerator.class, property = "personel_id")
 @Table(name = "personel")
 public class Personel {
     @Id
@@ -21,7 +28,8 @@ public class Personel {
     private String role;
 
     @ManyToMany(mappedBy = "personel")
-    private Set<Projects> projects  = new HashSet<>();
+    @JsonBackReference
+    private Set<Projects> projects = new HashSet<>();
 
 //    @OneToMany(mappedBy="personel", cascade=CascadeType.ALL)
 //    private List<Educations> education;
