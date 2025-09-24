@@ -23,9 +23,9 @@ public class Educations {
     private LocalDate education_expiration_date;
     private String first_time;
 
-//    @ManyToOne
-//    @JoinColumn(name="personel_id")
-//    private Personel personel;
+    @ManyToOne
+    @JoinColumn(name="personel_id")
+    private Personel personel;
 
 
 }

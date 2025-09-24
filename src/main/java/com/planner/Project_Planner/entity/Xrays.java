@@ -15,15 +15,15 @@ import java.time.LocalDate;
 @Getter
 @Setter
 @NoArgsConstructor
-@JsonIdentityInfo(generator = ObjectIdGenerators.PropertyGenerator.class, property = "exams_id")
-@Table(name = "p_medical_exams")
-public class Medicals {
+@JsonIdentityInfo(generator = ObjectIdGenerators.PropertyGenerator.class, property = "xray_id")
+@Table(name = "p_medical_xrays")
+public class Xrays {
     @Id
-    @Column(name="exams_id")
+    @Column(name="xray_id")
     @GeneratedValue(strategy= GenerationType.IDENTITY)
-    private Long exams_id;
-    private LocalDate exam_date;
-    private LocalDate exam_expiration_date;
+    private Long xray_id;
+    private LocalDate xrays_date;
+    private LocalDate xrays_expiration_date;
 
     @ManyToOne
     @JoinColumn(name="personel_id")

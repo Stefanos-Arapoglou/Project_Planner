@@ -1,8 +1,6 @@
 package com.planner.Project_Planner.entity;
 
-import com.fasterxml.jackson.annotation.JsonIdentityInfo;
-import com.fasterxml.jackson.annotation.JsonManagedReference;
-import com.fasterxml.jackson.annotation.ObjectIdGenerators;
+import com.fasterxml.jackson.annotation.*;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -10,11 +8,13 @@ import java.time.LocalDate;
 import java.util.HashSet;
 import java.util.Set;
 
+@Builder
 @Entity
 @AllArgsConstructor
 @Getter
 @Setter
 @NoArgsConstructor
+@JsonIgnoreProperties(ignoreUnknown = true)
 @JsonIdentityInfo(generator = ObjectIdGenerators.PropertyGenerator.class, property = "project_id")
 @Table(name = "projects")
 public class Projects {
@@ -25,8 +25,8 @@ public class Projects {
     private String project_code;
     private String project_name;
     private String location;
-    private int duration;
-    private int expected_personel;
+    private Integer duration;
+    private Integer expected_personel;
     private String crane;
     private String xy_map;
     @Column(name = "date_start")
@@ -50,7 +50,7 @@ public class Projects {
             inverseJoinColumns=@JoinColumn(name="vehicle_id")
     )
     @JsonManagedReference
-    private Set<Vehicles> vehicles;
+    private Set<Vehicles> vehicles = new HashSet<>();
 
 
 }

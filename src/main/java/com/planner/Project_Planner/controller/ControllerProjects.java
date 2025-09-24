@@ -1,8 +1,8 @@
 package com.planner.Project_Planner.controller;
 
-import com.planner.Project_Planner.entity.Personel;
+import com.planner.Project_Planner.domainDTO.DTOProjects;
 import com.planner.Project_Planner.entity.Projects;
-import com.planner.Project_Planner.repository.ProjectsRepository;
+import com.planner.Project_Planner.services.ProjectsService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -10,22 +10,21 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
-import java.util.Set;
 
 @RestController
 public class ControllerProjects {
 
     @Autowired
-    ProjectsRepository projectsRepository;
+    ProjectsService projectsService;
 
     @GetMapping("/projects")
-    public List<Projects> getProjects(){
-        return projectsRepository.findAll();
+    public List<Projects> getProject(){
+        return projectsService.getProject();
     }
 
     @PostMapping("/create-project")
-    public Projects createProject(@RequestBody Projects project){
-        return projectsRepository.save(project);
+    public Projects createProject(@RequestBody DTOProjects project){
+        return projectsService.saveProject(project);
     }
 
 }

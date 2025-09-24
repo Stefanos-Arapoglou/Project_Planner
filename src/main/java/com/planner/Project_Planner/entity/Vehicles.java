@@ -2,6 +2,7 @@ package com.planner.Project_Planner.entity;
 
 import com.fasterxml.jackson.annotation.JsonBackReference;
 import com.fasterxml.jackson.annotation.JsonIdentityInfo;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.ObjectIdGenerators;
 import jakarta.persistence.*;
 import lombok.*;
@@ -26,6 +27,7 @@ public class Vehicles {
 
     @ManyToMany(mappedBy = "vehicles")
     @JsonBackReference
+    @JsonIgnoreProperties("vehicle")
     private Set<Projects> projects = new HashSet<>();
 
 }

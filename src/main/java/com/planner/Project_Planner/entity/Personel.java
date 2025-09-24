@@ -2,6 +2,7 @@ package com.planner.Project_Planner.entity;
 
 import com.fasterxml.jackson.annotation.JsonBackReference;
 import com.fasterxml.jackson.annotation.JsonIdentityInfo;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.ObjectIdGenerators;
 import jakarta.persistence.*;
 import lombok.*;
@@ -29,10 +30,16 @@ public class Personel {
 
     @ManyToMany(mappedBy = "personel")
     @JsonBackReference
+    @JsonIgnoreProperties("personel")
     private Set<Projects> projects = new HashSet<>();
 
-//    @OneToMany(mappedBy="personel", cascade=CascadeType.ALL)
-//    private List<Educations> education;
+    @OneToMany(mappedBy="personel", cascade=CascadeType.ALL)
+    private List<Educations> education;
 
+    @OneToMany(mappedBy="personel", cascade=CascadeType.ALL)
+    private List<Medicals> medicals;
+
+    @OneToMany(mappedBy="personel", cascade=CascadeType.ALL)
+    private List<Xrays> xrays;
 
 }
