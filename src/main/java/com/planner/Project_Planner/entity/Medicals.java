@@ -1,15 +1,14 @@
 package com.planner.Project_Planner.entity;
 
+import com.fasterxml.jackson.annotation.JsonBackReference;
 import com.fasterxml.jackson.annotation.JsonIdentityInfo;
 import com.fasterxml.jackson.annotation.ObjectIdGenerators;
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.*;
 
 import java.time.LocalDate;
 
+@Builder
 @Entity
 @AllArgsConstructor
 @Getter
@@ -25,7 +24,10 @@ public class Medicals {
     private LocalDate exam_date;
     private LocalDate exam_expiration_date;
 
-
+    @ManyToOne
+    @JoinColumn(name="personel_id")
+    @JsonBackReference
+    private Personel personel;
 
 
 }
