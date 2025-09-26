@@ -4,10 +4,7 @@ import com.planner.Project_Planner.domainDTO.DTOProjects;
 import com.planner.Project_Planner.entity.Projects;
 import com.planner.Project_Planner.services.ProjectsService;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
@@ -22,9 +19,19 @@ public class ControllerProjects {
         return projectsService.getProject();
     }
 
-    @PostMapping("/create-project")
+    @PostMapping("/projects/create")
     public Projects createProject(@RequestBody DTOProjects project){
         return projectsService.saveProject(project);
+    }
+
+    @PostMapping("/projects/{project_id}/add-personel/{personel_id}")
+    public Projects addPersonel(@PathVariable Long project_id, @PathVariable Long personel_id) {
+        return projectsService.savePersonelToProject(project_id, personel_id);
+    }
+
+    @PostMapping("/projects/{project_id}/remove-personel/{personel_id}")
+    public Projects removePersonel(@PathVariable Long project_id, @PathVariable Long personel_id) {
+        return projectsService.removePersonelFromProject(project_id, personel_id);
     }
 
 }
