@@ -1,5 +1,6 @@
 package com.planner.Project_Planner.entity;
 
+import com.fasterxml.jackson.annotation.JsonBackReference;
 import com.fasterxml.jackson.annotation.JsonIdentityInfo;
 import com.fasterxml.jackson.annotation.ObjectIdGenerators;
 import jakarta.persistence.*;
@@ -26,6 +27,7 @@ public class Educations {
 
     @ManyToOne
     @JoinColumn(name="personel_id")
+    @JsonBackReference
     private Personel personel;
 
 

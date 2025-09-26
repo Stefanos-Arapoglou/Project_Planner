@@ -1,9 +1,6 @@
 package com.planner.Project_Planner.entity;
 
-import com.fasterxml.jackson.annotation.JsonBackReference;
-import com.fasterxml.jackson.annotation.JsonIdentityInfo;
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.annotation.ObjectIdGenerators;
+import com.fasterxml.jackson.annotation.*;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -34,12 +31,15 @@ public class Personel {
     private Set<Projects> projects = new HashSet<>();
 
     @OneToMany(mappedBy="personel", cascade=CascadeType.ALL)
+    @JsonManagedReference
     private List<Educations> education;
 
     @OneToMany(mappedBy="personel", cascade=CascadeType.ALL)
+    @JsonManagedReference
     private List<Medicals> medicals;
 
     @OneToMany(mappedBy="personel", cascade=CascadeType.ALL)
+    @JsonManagedReference
     private List<Xrays> xrays;
 
 }

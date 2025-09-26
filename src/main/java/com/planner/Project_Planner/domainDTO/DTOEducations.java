@@ -12,4 +12,5 @@ public class DTOEducations {
     private LocalDate education_date;
     private LocalDate education_expiration_date;
     private String first_time;
+    private Long personel_id;
 }

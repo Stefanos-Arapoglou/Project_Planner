@@ -11,4 +11,5 @@ public class DTOMedicals {
     private Long exams_id;
     private LocalDate exam_date;
     private LocalDate exam_expiration_date;
+    private Long personel_id;
 }

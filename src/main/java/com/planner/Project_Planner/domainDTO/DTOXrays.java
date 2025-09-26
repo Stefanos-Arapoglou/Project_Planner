@@ -11,4 +11,5 @@ public class DTOXrays {
     private Long xray_id;
     private LocalDate xrays_date;
     private LocalDate xrays_expiration_date;
+    private Long personel_id;
 }
