@@ -1,12 +1,12 @@
 package com.planner.Project_Planner.controller;
 
+import com.planner.Project_Planner.domainDTO.DTOPersonel;
 import com.planner.Project_Planner.entity.Educations;
 import com.planner.Project_Planner.entity.Personel;
 import com.planner.Project_Planner.repository.PersonelRepository;
+import com.planner.Project_Planner.services.PersonelService;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Set;
@@ -15,11 +15,16 @@ import java.util.Set;
 public class ControllerPersonel {
 
     @Autowired
-    PersonelRepository personelRepository;
+    PersonelService personelService;
 
     @GetMapping ("/personel")
-    public List<Personel> getPersonel(){;
-            return personelRepository.findAll();
+    public List<Personel> getPersonel() {
+        return personelService.getPersonel();
+    }
+
+    @PostMapping("/create-personel")
+    public Personel createPersonel(@RequestBody DTOPersonel personel){
+        return personelService.savePersonel(personel);
     }
 
 
