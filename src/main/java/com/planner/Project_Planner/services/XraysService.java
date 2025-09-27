@@ -1,7 +1,9 @@
 package com.planner.Project_Planner.services;
 
+import com.planner.Project_Planner.domainDTO.DTOVehicles;
 import com.planner.Project_Planner.domainDTO.DTOXrays;
 import com.planner.Project_Planner.entity.Personel;
+import com.planner.Project_Planner.entity.Vehicles;
 import com.planner.Project_Planner.entity.Xrays;
 import com.planner.Project_Planner.mapDTO.MapDTO;
 import com.planner.Project_Planner.repository.PersonelRepository;
@@ -35,6 +37,25 @@ public class XraysService {
 
         xray.setPersonel(personel);
         return xraysRepository.save(xray);
-
     }
+
+    public Xrays updateXray(Long id, DTOXrays updates) {
+        Xrays existing = xraysRepository.findById(id).orElse(null);
+        if (existing == null) {
+            return null; // controller will return null → JSON `null`
+        }
+
+        if (updates.getXrays_date() != null) {
+            existing.setXrays_date(updates.getXrays_date());
+        }
+        if (updates.getXrays_expiration_date() != null) {
+            existing.setXrays_expiration_date(updates.getXrays_expiration_date());
+        }
+        return xraysRepository.save(existing);
+    }
+
+
+
+
+
 }

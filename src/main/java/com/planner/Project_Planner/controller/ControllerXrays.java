@@ -1,14 +1,13 @@
 package com.planner.Project_Planner.controller;
 
+import com.planner.Project_Planner.domainDTO.DTOVehicles;
 import com.planner.Project_Planner.domainDTO.DTOXrays;
+import com.planner.Project_Planner.entity.Vehicles;
 import com.planner.Project_Planner.entity.Xrays;
 import com.planner.Project_Planner.repository.XraysRepository;
 import com.planner.Project_Planner.services.XraysService;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
@@ -22,11 +21,17 @@ public class ControllerXrays {
     public List<Xrays> getXrays(){
         return xraysService.getXrays();}
 
-    @PostMapping("/create-xray")
+    @PostMapping("/xrays/create")
     public Xrays createXray(@RequestBody DTOXrays xray){
         return xraysService.saveXrays(xray);
     }
 
+    @PatchMapping("/xrays/{xray_id}/update")
+    public Xrays updateXray(
+            @PathVariable Long xray_id,
+            @RequestBody DTOXrays updates) {
+        return xraysService.updateXray(xray_id, updates);
+    }
 
 
 }
