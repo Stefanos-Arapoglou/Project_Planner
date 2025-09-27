@@ -1,6 +1,8 @@
 package com.planner.Project_Planner.services;
 
+import com.planner.Project_Planner.domainDTO.DTOEducations;
 import com.planner.Project_Planner.domainDTO.DTOMedicals;
+import com.planner.Project_Planner.entity.Educations;
 import com.planner.Project_Planner.entity.Medicals;
 import com.planner.Project_Planner.entity.Personel;
 import com.planner.Project_Planner.mapDTO.MapDTO;
@@ -33,11 +35,24 @@ public class MedicalsService {
         Personel personel = personelRepository.findById(dto.getPersonel_id())
                 .orElseThrow(() -> new RuntimeException("Personel not found"));
 
-        // Set relation
         medical.setPersonel(personel);
 
-        // Save
         return medicalsRepository.save(medical);
+    }
+
+    public Medicals updateMedicals(Long id, DTOMedicals updates) {
+        Medicals existing = medicalsRepository.findById(id).orElse(null);
+        if (existing == null) {
+            return null; // controller will return null → JSON `null`
+        }
+
+        if (updates.getExam_date() != null) {
+            existing.setExam_date(updates.getExam_date());
+        }
+        if (updates.getExam_expiration_date() != null) {
+            existing.setExam_expiration_date(updates.getExam_expiration_date());
+        }
+        return medicalsRepository.save(existing);
     }
 
 }

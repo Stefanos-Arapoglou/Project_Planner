@@ -1,14 +1,13 @@
 package com.planner.Project_Planner.controller;
 
+import com.planner.Project_Planner.domainDTO.DTOEducations;
 import com.planner.Project_Planner.domainDTO.DTOMedicals;
+import com.planner.Project_Planner.entity.Educations;
 import com.planner.Project_Planner.entity.Medicals;
 import com.planner.Project_Planner.repository.MedicalsRepository;
 import com.planner.Project_Planner.services.MedicalsService;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
@@ -23,9 +22,16 @@ public class ControllerMedicals {
         return medicalsService.getMedicals();
     }
 
-    @PostMapping("/create-medical")
+    @PostMapping("/medicals/create")
     public Medicals createMedicals(@RequestBody DTOMedicals medical){
         return medicalsService.saveMedicals(medical);
+    }
+
+    @PatchMapping("/medicals/{exams_id}/update")
+    public Medicals updateMedical(
+            @PathVariable Long exams_id,
+            @RequestBody DTOMedicals updates) {
+        return medicalsService.updateMedicals(exams_id, updates);
     }
 
 }

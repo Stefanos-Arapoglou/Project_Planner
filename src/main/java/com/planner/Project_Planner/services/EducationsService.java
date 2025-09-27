@@ -1,14 +1,17 @@
 package com.planner.Project_Planner.services;
 
 import com.planner.Project_Planner.domainDTO.DTOEducations;
+import com.planner.Project_Planner.domainDTO.DTOProjects;
 import com.planner.Project_Planner.entity.Educations;
 import com.planner.Project_Planner.entity.Personel;
+import com.planner.Project_Planner.entity.Projects;
 import com.planner.Project_Planner.mapDTO.MapDTO;
 import com.planner.Project_Planner.repository.EducationsRepository;
 import com.planner.Project_Planner.repository.PersonelRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @Service
@@ -28,7 +31,6 @@ public class EducationsService {
     }
 
     public Educations saveEducation(DTOEducations dtoEducations){
-//        return educationsRepository.save(mapDTO.DTOEducationsToEducations(education));
         Educations education = mapDTO.DTOEducationsToEducations(dtoEducations);
 
         Personel personel = personelRepository.findById(dtoEducations.getPersonel_id())
@@ -36,7 +38,24 @@ public class EducationsService {
 
         education.setPersonel(personel);
         return educationsRepository.save(education);
+    }
 
+    public Educations updateEducation(Long id, DTOEducations updates) {
+        Educations existing = educationsRepository.findById(id).orElse(null);
+        if (existing == null) {
+            return null; // controller will return null → JSON `null`
+        }
+
+        if (updates.getEducation_date() != null) {
+            existing.setEducation_date(updates.getEducation_date());
+        }
+        if (updates.getEducation_expiration_date() != null) {
+            existing.setEducation_expiration_date(updates.getEducation_expiration_date());
+        }
+        if (updates.getFirst_time() != null) {
+            existing.setFirst_time(updates.getFirst_time());
+        }
+        return educationsRepository.save(existing);
     }
 
 }
