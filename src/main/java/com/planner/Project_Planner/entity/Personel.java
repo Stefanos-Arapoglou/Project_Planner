@@ -14,7 +14,10 @@ import java.util.Set;
 @Getter
 @Setter
 @NoArgsConstructor
-@JsonIdentityInfo(generator = ObjectIdGenerators.PropertyGenerator.class, property = "personel_id")
+/*@JsonIdentityInfo(generator = ObjectIdGenerators.PropertyGenerator.class, property = "personel_id")*/
+/*
+@JsonIgnoreProperties({"education", "medicals", "xrays"})
+*/
 @Table(name = "personel")
 public class Personel {
     @Id
@@ -26,20 +29,21 @@ public class Personel {
     private String role;
 
     @ManyToMany(mappedBy = "personel")
-    @JsonBackReference
-    @JsonIgnoreProperties("personel")
+    @JsonIgnore
     private Set<Projects> projects = new HashSet<>();
 
     @OneToMany(mappedBy="personel", cascade=CascadeType.ALL)
-    @JsonManagedReference
+/*    @JsonManagedReference*/
     private List<Educations> education;
 
     @OneToMany(mappedBy="personel", cascade=CascadeType.ALL)
-    @JsonManagedReference
+/*    @JsonManagedReference*/
     private List<Medicals> medicals;
 
     @OneToMany(mappedBy="personel", cascade=CascadeType.ALL)
+/*
     @JsonManagedReference
+*/
     private List<Xrays> xrays;
 
 }

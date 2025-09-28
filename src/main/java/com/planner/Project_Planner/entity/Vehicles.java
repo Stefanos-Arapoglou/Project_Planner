@@ -1,9 +1,6 @@
 package com.planner.Project_Planner.entity;
 
-import com.fasterxml.jackson.annotation.JsonBackReference;
-import com.fasterxml.jackson.annotation.JsonIdentityInfo;
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.annotation.ObjectIdGenerators;
+import com.fasterxml.jackson.annotation.*;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -16,7 +13,9 @@ import java.util.Set;
 @Getter
 @Setter
 @NoArgsConstructor
+/*
 @JsonIdentityInfo(generator = ObjectIdGenerators.PropertyGenerator.class, property = "vehicle_id")
+*/
 @Table(name="vehicles")
 public class Vehicles {
     @Id
@@ -29,6 +28,7 @@ public class Vehicles {
     @ManyToMany(mappedBy = "vehicles")
     @JsonBackReference
     @JsonIgnoreProperties("vehicle")
+    @JsonIgnore
     private Set<Projects> projects = new HashSet<>();
 
 }
