@@ -34,6 +34,10 @@ public class ProjectsService {
         return projectsRepository.findAll();
     }
 
+    public Projects getProjectById(Long project_id){
+        return projectsRepository.findById(project_id).orElse(null);
+    }
+
     public Projects saveProject(DTOProjects project){
         return projectsRepository.save(mapDTO.DTOProjectsToProjects(project));
     }

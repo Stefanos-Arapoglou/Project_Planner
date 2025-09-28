@@ -15,7 +15,9 @@ import java.util.Set;
 @Setter
 @NoArgsConstructor
 @JsonIgnoreProperties(ignoreUnknown = true)
+/*
 @JsonIdentityInfo(generator = ObjectIdGenerators.PropertyGenerator.class, property = "project_id")
+*/
 @Table(name = "projects")
 public class Projects {
     @Id
@@ -40,7 +42,7 @@ public class Projects {
             joinColumns = @JoinColumn(name="project_id"),
             inverseJoinColumns=@JoinColumn(name="personel_id")
     )
-    @JsonManagedReference
+    @JsonIgnoreProperties({"education", "medicals", "xrays", "projects"})
     private Set<Personel> personel = new HashSet<>();
 
     @ManyToMany
@@ -49,7 +51,7 @@ public class Projects {
             joinColumns = @JoinColumn(name="project_id"),
             inverseJoinColumns=@JoinColumn(name="vehicle_id")
     )
-    @JsonManagedReference
+    @JsonIgnoreProperties({"education", "medicals", "xrays", "projects"})
     private Set<Vehicles> vehicles = new HashSet<>();
 
 

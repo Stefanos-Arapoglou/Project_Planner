@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
+@CrossOrigin(origins = "http://localhost:8080")
 public class ControllerProjects {
 
     @Autowired
@@ -19,6 +20,10 @@ public class ControllerProjects {
         return projectsService.getProject();
     }
 
+    @GetMapping("/projects/{project_id}")
+    public Projects getProjectById(@PathVariable Long project_id){
+        return projectsService.getProjectById(project_id);
+    }
 
     @PostMapping("/projects/create")
     public Projects createProject(@RequestBody DTOProjects project){
