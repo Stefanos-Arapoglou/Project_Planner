@@ -2,9 +2,11 @@ package com.planner.Project_Planner.services;
 
 import com.planner.Project_Planner.domainDTO.DTOEducations;
 import com.planner.Project_Planner.domainDTO.DTOMedicals;
+import com.planner.Project_Planner.domainDTO.DTOXrays;
 import com.planner.Project_Planner.entity.Educations;
 import com.planner.Project_Planner.entity.Medicals;
 import com.planner.Project_Planner.entity.Personel;
+import com.planner.Project_Planner.entity.Xrays;
 import com.planner.Project_Planner.mapDTO.MapDTO;
 import com.planner.Project_Planner.repository.MedicalsRepository;
 import com.planner.Project_Planner.repository.PersonelRepository;
@@ -53,6 +55,22 @@ public class MedicalsService {
             existing.setExam_expiration_date(updates.getExam_expiration_date());
         }
         return medicalsRepository.save(existing);
+    }
+
+    public void removeMedical(Long exam_id) {
+        medicalsRepository.deleteById(exam_id);
+    }
+
+    public Medicals createMedicals(DTOMedicals dto) {
+        Personel person = personelRepository.findById(dto.getPersonel_id())
+                .orElseThrow(() -> new RuntimeException("Personel not found"));
+
+        Medicals medicals = new Medicals();
+        medicals.setExam_date(dto.getExam_date());
+        medicals.setExam_expiration_date(dto.getExam_date().plusYears(1)); // example
+        medicals.setPersonel(person); // <--- link to person
+
+        return medicalsRepository.save(medicals);
     }
 
 }

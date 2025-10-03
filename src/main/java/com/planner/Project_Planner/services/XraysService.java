@@ -2,6 +2,7 @@ package com.planner.Project_Planner.services;
 
 import com.planner.Project_Planner.domainDTO.DTOVehicles;
 import com.planner.Project_Planner.domainDTO.DTOXrays;
+import com.planner.Project_Planner.entity.Medicals;
 import com.planner.Project_Planner.entity.Personel;
 import com.planner.Project_Planner.entity.Vehicles;
 import com.planner.Project_Planner.entity.Xrays;
@@ -54,8 +55,20 @@ public class XraysService {
         return xraysRepository.save(existing);
     }
 
+    public void removeXray(Long xray_id) {
+        xraysRepository.deleteById(xray_id);
+    }
 
+    public Xrays createXrays(DTOXrays dto) {
+        Personel person = personelRepository.findById(dto.getPersonel_id())
+                .orElseThrow(() -> new RuntimeException("Personel not found"));
 
+        Xrays xray = new Xrays();
+        xray.setXrays_date(dto.getXrays_date());
+        xray.setXrays_expiration_date(dto.getXrays_date().plusYears(2)); // example
+        xray.setPersonel(person); // <--- link to person
 
+        return xraysRepository.save(xray);
+    }
 
 }

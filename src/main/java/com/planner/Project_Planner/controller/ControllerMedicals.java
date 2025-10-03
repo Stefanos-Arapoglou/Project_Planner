@@ -35,4 +35,9 @@ public class ControllerMedicals {
         return medicalsService.updateMedicals(exams_id, updates);
     }
 
+    @PostMapping("/medicals/{exam_id}/remove")
+    public void removeMedicalById(@PathVariable Long exam_id){
+       medicalsService.removeMedical(exam_id);
+    }
+
 }

@@ -34,5 +34,10 @@ public class ControllerXrays {
         return xraysService.updateXray(xray_id, updates);
     }
 
+    @PostMapping("/xrays/{xray_id}/remove")
+    public void removeXrayById(@PathVariable Long xray_id){
+        xraysService.removeXray(xray_id);
+    }
+
 
 }

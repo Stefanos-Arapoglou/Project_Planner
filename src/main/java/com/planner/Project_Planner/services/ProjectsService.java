@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 @Service
 public class ProjectsService {
@@ -119,6 +120,16 @@ public class ProjectsService {
         }
 
         return projectsRepository.save(existing);
+    }
+
+    public Set<Personel> getPersonelByProjectId(Long project_id){
+        Projects project = projectsRepository.findById(project_id).orElseThrow(() -> new RuntimeException("Project not found with id " + project_id));
+        return project.getPersonel();
+    }
+
+    public Set<Vehicles> getVehiclesByProjectId(Long project_id){
+        Projects project = projectsRepository.findById(project_id).orElseThrow(() -> new RuntimeException("Project not found with id " + project_id));
+        return project.getVehicles();
     }
 
 }
