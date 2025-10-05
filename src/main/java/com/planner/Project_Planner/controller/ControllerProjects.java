@@ -70,4 +70,11 @@ public class ControllerProjects {
         return projectsService.updateProject(project_id, updates);
     }
 
+    @PostMapping("/projects/{project_id}/remove")
+    public void removeProject(@PathVariable Long project_id){
+        projectsService.removeProjectById(project_id);
+    }
+
+
+
 }

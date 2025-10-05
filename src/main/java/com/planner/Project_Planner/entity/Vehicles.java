@@ -26,9 +26,7 @@ public class Vehicles {
     private String type;
 
     @ManyToMany(mappedBy = "vehicles")
-    @JsonBackReference
-    @JsonIgnoreProperties("vehicle")
-    @JsonIgnore
+    @JsonIgnoreProperties({"vehicles", "personel", "education", "medicals", "xrays"})
     private Set<Projects> projects = new HashSet<>();
 
 }

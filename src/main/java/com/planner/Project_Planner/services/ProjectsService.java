@@ -132,4 +132,13 @@ public class ProjectsService {
         return project.getVehicles();
     }
 
+    @Transactional
+    public void removeProjectById(Long project_id) {
+        Projects projects = projectsRepository.findById(project_id)
+                .orElseThrow(() -> new RuntimeException("Project with id " + project_id + " not found"));
+
+        // Delete personel (cascade will remove educations, medicals, xrays)
+        projectsRepository.delete(projects);
+    }
+
 }

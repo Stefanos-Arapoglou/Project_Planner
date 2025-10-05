@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Set;
 
 @RestController
 @CrossOrigin(origins = "http://localhost:8080")
@@ -44,6 +45,11 @@ public class ControllerVehicles {
     @PostMapping("/vehicles/{vehicle_id}/remove")
     public void removeVehicle(@PathVariable Long vehicle_id){
         vehiclesService.removeVehicleById(vehicle_id);
+    }
+
+    @GetMapping("/vehicles/{vehicle_id}/projects")
+    public Set<Projects> getProjectsByVehicleId(@PathVariable Long vehicle_id){
+        return vehiclesService.getProjectsByVehicleID(vehicle_id);
     }
 
 

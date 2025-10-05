@@ -13,6 +13,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Set;
 
 @Service
 public class VehiclesService {
@@ -63,6 +64,11 @@ public class VehiclesService {
 
         // Delete personel (cascade will remove educations, medicals, xrays)
         vehiclesRepository.delete(vehicles);
+    }
+
+    public Set<Projects> getProjectsByVehicleID(Long vehicle_id){
+        Vehicles vehicles = vehiclesRepository.findById(vehicle_id).orElseThrow(() -> new RuntimeException("Vehicle not found with id " + vehicle_id));
+        return vehicles.getProjects();
     }
 
 }
