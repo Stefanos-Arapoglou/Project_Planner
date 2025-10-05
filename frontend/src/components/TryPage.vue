@@ -1,1185 +1,1444 @@
 <template>
-  <div class="calendar-view">
-    <div class="calendar-header">
-      <h2 class="title">Personnel Calendar</h2>
-      <div class="header-controls">
-        <div class="control-group">
-          <label class="control-label">Number of Days:</label>
-          <div class="input-with-button">
-            <input 
-              type="number" 
-              v-model.number="calendarDays" 
-              min="1" 
-              max="365"
-              class="days-input"
-            />
-            <button class="refresh-btn" @click="generateDates">Refresh</button>
-          </div>
-        </div>
-        <div class="control-group">
-          <label class="control-label">Start Date:</label>
-          <input 
-            type="date" 
-            v-model="startDate" 
-            class="date-input"
-            @change="generateDates"
-          />
-        </div>
-        <button class="today-btn" @click="goToToday">Today</button>
+  <div class="project-dashboard" :class="{ 'dark-mode': darkMode }">
+    <header class="dashboard-header">
+      <div class="header-content">
+        <h1>Project Management Dashboard</h1>
+        <button class="dark-mode-toggle" @click="toggleDarkMode">
+          {{ darkMode ? '☀️ Light' : '🌙 Dark' }}
+        </button>
+      </div>
+    </header>
+
+    <div class="controls">
+      <div class="search-box">
+        <input 
+          type="text" 
+          v-model="searchTerm"
+          placeholder="Search projects by name, code, location, personel, or vehicles..."
+        >
+      </div>
+      <div class="filter-controls">
+        <button class="btn btn-create" @click="openCreateForm">
+          + Create New Project
+        </button>
       </div>
     </div>
 
     <div class="table-container">
-      <table class="calendar-table">
-        <!-- Month Header Row -->
-        <thead class="month-header">
+      <table v-if="filteredProjects.length > 0" class="bordered-table excel-style-table">
+        <thead>
           <tr>
-            <th class="sticky-col month-col" colspan="3">Timeline</th>
-            <th 
-              v-for="month in monthHeaders" 
-              :key="month.key"
-              :colspan="month.days"
-              class="month-header-cell"
-            >
-              {{ month.name }} {{ month.year }}
-            </th>
+            <th class="col-code">Code</th>
+            <th class="col-name">Project Name</th>
+            <th class="col-location">Location</th>
+            <th class="col-duration">Duration</th>
+            <th class="col-expected">Expected</th>
+            <th class="col-assigned">Assigned</th>
+            <th class="col-personnel-breakdown">Personnel</th>
+            <th class="col-vehicles-breakdown">Vehicles</th>
+            <th class="col-crane">Crane</th>
+            <th class="col-map">Map</th>
+            <th class="col-start">Start</th>
+            <th class="col-end">End</th>
+            <th class="col-actions">Actions</th>
           </tr>
         </thead>
-        
-        <!-- Date Header Row -->
-        <thead class="date-header">
-          <tr>
-            <th class="sticky-col col-name fixed-column" @click="sortBy('name')">
-              <div class="header-content">
-                Name
-                <span class="sort-indicator">{{ sortField === 'name' ? (sortDirection === 'asc' ? '↑' : '↓') : '' }}</span>
-              </div>
-            </th>
-            <th class="sticky-col col-role fixed-column" @click="sortBy('role')">
-              <div class="header-content">
-                Role
-                <span class="sort-indicator">{{ sortField === 'role' ? (sortDirection === 'asc' ? '↑' : '↓') : '' }}</span>
-              </div>
-            </th>
-            <th class="sticky-col col-status fixed-column" @click="sortBy('status')">
-              <div class="header-content">
-                Status
-                <span class="sort-indicator">{{ sortField === 'status' ? (sortDirection === 'asc' ? '↑' : '↓') : '' }}</span>
-              </div>
-            </th>
-            <th 
-              v-for="date in dateRange" 
-              :key="date.getTime()"
-              :class="{
-                'date-header-cell': true,
-                'today': isToday(date),
-                'weekend': isWeekend(date),
-                'month-start': isMonthStart(date)
-              }"
-            >
-              <div class="date-content">
-                <div class="date-day">{{ formatDateDay(date) }}</div>
-                <div class="date-weekday">{{ formatDateWeekday(date) }}</div>
-              </div>
-            </th>
-          </tr>
-        </thead>
-        
         <tbody>
           <tr 
-            v-for="person in sortedPersonnel" 
-            :key="person.personel_id"
-            class="personnel-row"
+            v-for="project in filteredProjects" 
+            :key="project.project_id" 
+            class="table-row"
           >
-            <td class="sticky-col col-name">
-              <div class="personnel-info">
-                <span class="personnel-name">{{ person.personel_name }} {{ person.personel_surname }}</span>
+            <td class="col-code cell-bordered">
+              <span class="project-code clickable" @click="openProjectCard(project)">
+                {{ project.project_code }}
+              </span>
+            </td>
+            <td class="col-name cell-bordered">
+              <strong>{{ project.project_name }}</strong>
+            </td>
+            <td class="col-location cell-bordered">
+              <span class="location-badge">{{ project.location }}</span>
+            </td>
+            <td class="col-duration cell-bordered">
+              <div class="duration-cell">
+                <span class="duration-value">{{ project.duration }}</span>
+                <span class="duration-unit">days</span>
               </div>
             </td>
-            <td class="sticky-col col-role">
-              <div :class="['role-cell', getRoleClass(person.role)]">
-                <span class="role-text">{{ person.role }}</span>
+            <td class="col-expected cell-bordered">
+              <div class="personnel-count">
+                <span class="count">{{ project.expected_personel || 0 }}</span>
+                <span class="label">people</span>
               </div>
             </td>
-            <td class="sticky-col col-status">
-              <div :class="['status-cell', `status-${getValidityStatus(person)}`]">
-                <span class="status-text">{{ getValidityStatus(person) }}</span>
-              </div>
-            </td>
-            <td 
-              v-for="date in dateRange" 
-              :key="date.getTime()"
-              :class="{
-                'calendar-cell': true,
-                'weekend': isWeekend(date),
-                'today': isToday(date),
-                'clickable': true
-              }"
-              @click="onDateClick(person, date)"
-            >
-              <div class="cell-content">
-                <!-- CASE 1: Personnel has assigned projects -->
-                <div 
-                  v-if="getProjectsOnDate(person, date).length > 0"
-                  class="projects-container"
-                  :class="getProjectCountClass(getProjectsOnDate(person, date).length)"
+            <td class="col-assigned cell-bordered">
+              <div class="personnel-count">
+                <span 
+                  :class="[
+                    'count', 
+                    getPersonnelStatus(project) === 'sufficient' ? 'sufficient' : 'insufficient'
+                  ]"
                 >
-                  <div 
-                    v-for="project in getProjectsOnDate(person, date)" 
-                    :key="project.project_id"
-                    class="project-chip"
-                    @click.stop="onProjectClick(project)"
-                    :title="`${project.project_code} — ${project.assigned_personel ?? '0'}/${project.expected_personel ?? 'N/A'}`"
-                  >
-                    {{ project.project_code }}
+                  {{ getAssignedPersonnelCount(project) }}
+                </span>
+                <span class="label">assigned</span>
+              </div>
+            </td>
+            <td class="col-personnel-breakdown cell-bordered">
+              <div class="breakdown-cell clickable" @click="openPersonnelBreakdown(project)">
+                <div class="breakdown-row">
+                  <div class="breakdown-item">
+                    <span class="breakdown-count">{{ getRoleCount(project, 'Engineer') }}</span>
+                    <span class="breakdown-label">Eng</span>
+                  </div>
+                  <div class="breakdown-item">
+                    <span class="breakdown-count">{{ getRoleCount(project, 'Worker') }}</span>
+                    <span class="breakdown-label">Wkr</span>
+                  </div>
+                  <div class="breakdown-item">
+                    <span class="breakdown-count">{{ getRoleCount(project, 'Driver') }}</span>
+                    <span class="breakdown-label">Drv</span>
                   </div>
                 </div>
-
-                <!-- CASE 2: No assigned projects for this person on this date -->
-                <div
-                  v-else
-                  class="no-projects-container"
-                >
-                  <div 
-                    v-for="project in getActiveProjectsOnDate(date)"
-                    :key="project.project_id"
-                    class="project-chip"
-                    :class="{
-                      'project-chip-ok': (project.assigned_personel ?? 0) >= (project.expected_personel ?? 0),
-                      'project-chip-need': (project.assigned_personel ?? 0) < (project.expected_personel ?? 0)
-                    }"
-                    @click.stop="onProjectClick(project)"
-                    :title="`${project.project_code} — ${project.assigned_personel ?? 0}/${project.expected_personel ?? 'N/A'}`"
-                  >
-                    {{ project.project_code }}
+              </div>
+            </td>
+            <td class="col-vehicles-breakdown cell-bordered">
+              <div class="breakdown-cell clickable" @click="openVehiclesBreakdown(project)">
+                <div class="breakdown-row">
+                  <div class="breakdown-item">
+                    <span class="breakdown-count">{{ getVehicleTypeCount(project, 'Truck') }}</span>
+                    <span class="breakdown-label">Trk</span>
+                  </div>
+                  <div class="breakdown-item">
+                    <span class="breakdown-count">{{ getVehicleTypeCount(project, 'Car') }}</span>
+                    <span class="breakdown-label">Car</span>
+                  </div>
+                  <div class="breakdown-item">
+                    <span class="breakdown-count">{{ getVehicleTypeCount(project, 'Other') }}</span>
+                    <span class="breakdown-label">Oth</span>
                   </div>
                 </div>
+              </div>
+            </td>
+            <td class="col-crane cell-bordered">
+              <span :class="['crane-text', project.crane === 'Yes' ? 'has-crane' : 'no-crane']">
+                {{ project.crane === 'Yes' ? 'YES' : 'NO' }}
+              </span>
+            </td>
+            <td class="col-map cell-bordered">
+              <a 
+                v-if="project.xy_map"
+                :href="getMapsLink(project.xy_map)" 
+                target="_blank" 
+                class="map-link-simple"
+                @click.stop
+              >
+                Map
+              </a>
+              <span v-else class="map-link-simple disabled">Map</span>
+            </td>
+            <td class="col-start cell-bordered">
+              <div class="date-cell">
+                <span class="date">{{ formatDate(project.date_start) }}</span>
+              </div>
+            </td>
+            <td class="col-end cell-bordered">
+              <div class="date-cell">
+                <span class="date">{{ calculateEndDate(project) }}</span>
+              </div>
+            </td>
+            <td class="col-actions cell-bordered">
+              <div class="action-buttons">
+                <button class="btn btn-personnel" @click.stop="openPersonnelForm(project)">
+                  Personnel
+                </button>
+                <button class="btn btn-vehicles" @click.stop="openVehiclesForm(project)">
+                  Vehicles
+                </button>
+                <button class="btn btn-remove" @click.stop="removeProject(project)">
+                  Remove
+                </button>
               </div>
             </td>
           </tr>
         </tbody>
       </table>
+
+      <div v-else class="empty-state">
+        <div class="empty-icon">📊</div>
+        <h3>No projects found</h3>
+        <p>Try adjusting your search or filters</p>
+      </div>
     </div>
 
-    <!-- Replace the small custom popup with your ProjectInfo component -->
-    <!-- Assumes ProjectInfo.vue accepts prop `project` and emits `close` -->
-<ProjectInfo
-  v-if="selectedProject"
-  :project="selectedProject"
-  :personnel="selectedProjectPersonnel"
-  :vehicles="selectedProjectVehicles"
-  class="project-info-container"
-/>
+    <!-- CREATE PROJECT MODAL - FIXED POSITION -->
+    <div v-if="showCreateForm" class="modal-overlay">
+      <div class="modal-content create-modal" @click.stop>
+        <div class="modal-header">
+          <h3>Create New Project</h3>
+          <button class="modal-close-btn" @click="closeModals">×</button>
+        </div>
+        <form @submit.prevent="createProject" class="create-form">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="project_code">Project Code *</label>
+              <input 
+                type="text" 
+                id="project_code"
+                v-model="newProject.project_code" 
+                required
+                placeholder="Enter project code"
+              >
+            </div>
+            <div class="form-group">
+              <label for="project_name">Project Name *</label>
+              <input 
+                type="text" 
+                id="project_name"
+                v-model="newProject.project_name" 
+                required
+                placeholder="Enter project name"
+              >
+            </div>
+          </div>
 
-<div
-  v-if="selectedProject"
-  class="project-info-modal"
-  @click.self="closeProjectInfo"
->
-  <ProjectInfo
-    :project="selectedProject"
-    :personnel="selectedProjectPersonnel"
-    :vehicles="selectedProjectVehicles"
-    @close="closeProjectInfo"
-  />
-</div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="location">Location</label>
+              <input 
+                type="text" 
+                id="location"
+                v-model="newProject.location" 
+                placeholder="Enter location"
+              >
+            </div>
+            <div class="form-group">
+              <label for="duration">Duration (days)</label>
+              <input 
+                type="number" 
+                id="duration"
+                v-model.number="newProject.duration" 
+                min="1"
+                placeholder="Enter duration"
+              >
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="expected_personel">Expected Personnel</label>
+              <input 
+                type="number" 
+                id="expected_personel"
+                v-model.number="newProject.expected_personel"
+                min="0"
+                placeholder="Enter expected personnel count"
+              >
+            </div>
+            <div class="form-group">
+              <label for="crane">Crane Required</label>
+              <select id="crane" v-model="newProject.crane">
+                <option value="No">No</option>
+                <option value="Yes">Yes</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="xy_map">Coordinates (Lat, Lng)</label>
+              <input 
+                type="text" 
+                id="xy_map"
+                v-model="newProject.xy_map" 
+                placeholder="e.g., 40.7128, -74.0060"
+              >
+            </div>
+            <div class="form-group">
+              <label for="date_start">Start Date</label>
+              <input 
+                type="date" 
+                id="date_start"
+                v-model="newProject.date_start"
+              >
+            </div>
+          </div>
+
+          <div class="form-actions">
+            <button type="button" @click="closeModals" class="btn btn-cancel">
+              Cancel
+            </button>
+            <button type="submit" class="btn btn-submit" :disabled="creating">
+              {{ creating ? 'Creating...' : 'Create Project' }}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Project Card Modal -->
+    <div v-if="showProjectCard && selectedProject" class="modal-overlay" @click="closeModals">
+      <div class="modal-content" @click.stop>
+        <div class="modal-header">
+          <h3>Project Details</h3>
+          <button class="modal-close-btn" @click="closeModals">×</button>
+        </div>
+        <ProjectCard :project="selectedProject" @updated="getProjects" @close="closeModals" />
+      </div>
+    </div>
+
+    <!-- Personel Info Modal -->
+    <div v-if="showPersonelInfo" class="modal-overlay personel-info-overlay">
+      <div class="modal-content personel-info-modal" @click.stop>
+        <div class="modal-header">
+          <h3>Personnel Details</h3>
+          <button class="modal-close-btn" @click="closeModals">×</button>
+        </div>
+        <div v-if="loadingPersonnel" class="personel-loading">
+          <div class="spinner"></div>
+          Loading personnel data...
+        </div>
+        <PersonelInfo 
+          v-else-if="selectedPersonnel"
+          :personnel="selectedPersonnel"
+          @close="closePersonelInfo"
+          @personel-updated="handlePersonelUpdated"
+          @medical-created="handleMedicalCreated"
+          @xray-created="handleXrayCreated"
+          @education-created="handleEducationCreated"
+          @medical-removed="handleMedicalRemoved"
+          @xray-removed="handleXrayRemoved"
+          @education-removed="handleEducationRemoved"
+          @open-project-card="openProjectCardFromPersonel"
+        />
+      </div>
+    </div>
+
+    <!-- Personnel Breakdown Modal -->
+    <div v-if="showPersonnelBreakdown && selectedProject" class="modal-overlay" @click="closeModals">
+      <div class="modal-content breakdown-modal" @click.stop>
+        <div class="modal-header">
+          <h3>Personnel - {{ selectedProject.project_name }}</h3>
+          <button class="modal-close-btn" @click="closeModals">×</button>
+        </div>
+        <div class="breakdown-content">
+          <div 
+            v-for="person in (selectedProject.personel || [])" 
+            :key="person.personel_id"
+            class="personnel-item clickable"
+            @click="openPersonelInfo(person)"
+          >
+            <div class="personnel-info">
+              <span class="person-name">{{ person.personel_name }} {{ person.personel_surname }}</span>
+              <span class="person-role">{{ person.role }}</span>
+            </div>
+          </div>
+          <div v-if="!selectedProject.personel || selectedProject.personel.length === 0" class="no-items">
+            No personnel assigned
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Vehicles Breakdown Modal -->
+    <div v-if="showVehiclesBreakdown && selectedProject" class="modal-overlay" @click="closeModals">
+      <div class="modal-content breakdown-modal" @click.stop>
+        <div class="modal-header">
+          <h3>Vehicles - {{ selectedProject.project_name }}</h3>
+          <button class="modal-close-btn" @click="closeModals">×</button>
+        </div>
+        <div class="breakdown-content">
+          <div 
+            v-for="vehicle in (selectedProject.vehicles || [])" 
+            :key="vehicle.vehicle_id"
+            class="vehicle-item clickable"
+            @click="openVehicleCard(vehicle)"
+          >
+            <div class="vehicle-info">
+              <span class="vehicle-name">{{ vehicle.vehicle }}</span>
+              <span class="vehicle-type">{{ vehicle.type }}</span>
+            </div>
+          </div>
+          <div v-if="!selectedProject.vehicles || selectedProject.vehicles.length === 0" class="no-items">
+            No vehicles assigned
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Vehicle Card Modal -->
+    <div v-if="showVehicleCard && selectedVehicle" class="modal-overlay" @click="closeModals">
+      <div class="modal-content" @click.stop>
+        <div class="modal-header">
+          <h3>Vehicle Details</h3>
+          <button class="modal-close-btn" @click="closeModals">×</button>
+        </div>
+        <VehiclesCard 
+          :vehicle="selectedVehicle"
+          :projectId="selectedProject?.project_id"
+          @removed="getProjects"
+          @close="closeModals"
+        />
+      </div>
+    </div>
+
+    <!-- Add Personnel Modal -->
+    <div v-if="showPersonnelForm" class="modal-overlay" @click="closeModals">
+      <div class="modal-content large-modal" @click.stop>
+        <div class="modal-header">
+          <h3>Manage Personnel - {{ selectedProject?.project_name }}</h3>
+          <button class="modal-close-btn" @click="closeModals">×</button>
+        </div>
+        <AddPersonel 
+          :project="selectedProject" 
+          @close="closeModals"
+          @personnelUpdated="handlePersonnelUpdated"
+        />
+      </div>
+    </div>
+
+    <!-- Add Vehicles Modal -->
+    <div v-if="showVehiclesForm" class="modal-overlay" @click="closeModals">
+      <div class="modal-content" @click.stop>
+        <div class="modal-header">
+          <h3>Manage Vehicles - {{ selectedProject?.project_name }}</h3>
+          <button class="modal-close-btn" @click="closeModals">×</button>
+        </div>
+        <AddVehicles 
+          :project="selectedProject" 
+          @close="closeModals"
+          @vehiclesUpdated="getProjects"  
+        />
+      </div>
+    </div>
+
+    <div v-if="loading" class="loading">
+      <div class="spinner"></div>
+      Loading project data...
+    </div>
+
+    <div v-if="error" class="error">
+      <div class="error-icon">⚠️</div>
+      <h3>Failed to load project data</h3>
+      <p>Please try again later</p>
+    </div>
   </div>
 </template>
 
 <script>
 import axios from "axios";
-import ProjectInfo from "./ProjectInfo.vue";
+import ProjectCard from "./ProjectCard.vue";
+import PersonelInfo from "./PersonelInfo.vue";
+import AddPersonel from "./AddPersonel.vue";
+import VehiclesCard from "./VehiclesCard.vue";
+import AddVehicles from "./AddVehicles.vue";
 
 export default {
-  name: "PersonnelCalendar",
+  name: 'ProjectDashboard',
   components: {
-    ProjectInfo
+    ProjectCard, 
+    PersonelInfo,
+    AddPersonel, 
+    VehiclesCard, 
+    AddVehicles
   },
   data() {
     return {
-      personnel: [],
       projects: [],
-      calendarDays: 30,
-      startDate: new Date().toISOString().split('T')[0],
-      dateRange: [],
-      sortField: 'name',
-      sortDirection: 'asc',
-      
-      // Project info panel state
-      showProjectInfo: false,
-      selectedProject: null
-    };
+      loading: false,
+      error: false,
+      searchTerm: '',
+      darkMode: false,
+      // Modal states
+      showProjectCard: false,
+      showPersonelInfo: false,
+      showVehicleCard: false,
+      showPersonnelForm: false,
+      showVehiclesForm: false,
+      showUpdateForm: false,
+      showCreateForm: false,
+      showPersonnelBreakdown: false,
+      showVehiclesBreakdown: false,
+      selectedProject: null,
+      selectedPersonnel: null,
+      selectedVehicle: null,
+      creating: false,
+      loadingPersonnel: false,
+      // New project data
+      newProject: {
+        project_code: '',
+        project_name: '',
+        location: '',
+        duration: null,
+        expected_personel: null,
+        crane: 'No',
+        xy_map: '',
+        date_start: '',
+        date_end: ''
+      }
+    }
   },
   computed: {
-    sortedPersonnel() {
-      return [...this.personnel].sort((a, b) => {
-        let aValue, bValue;
+    filteredProjects() {
+      return this.projects.filter(project => {
+        const searchLower = this.searchTerm.toLowerCase();
+        const matchesSearch = 
+          project.project_code?.toLowerCase().includes(searchLower) ||
+          project.project_name?.toLowerCase().includes(searchLower) ||
+          project.location?.toLowerCase().includes(searchLower) ||
+          (project.personel || []).some(person => 
+            person.personel_name?.toLowerCase().includes(searchLower) ||
+            person.personel_surname?.toLowerCase().includes(searchLower) ||
+            person.role?.toLowerCase().includes(searchLower)
+          ) ||
+          (project.vehicles || []).some(vehicle => 
+            vehicle.vehicle?.toLowerCase().includes(searchLower) ||
+            vehicle.type?.toLowerCase().includes(searchLower)
+          );
         
-        if (this.sortField === 'role') {
-          aValue = a.role;
-          bValue = b.role;
-        } else if (this.sortField === 'status') {
-          aValue = this.getValidityStatus(a);
-          bValue = this.getValidityStatus(b);
-        } else {
-          // Sort by name (default)
-          aValue = `${a.personel_name} ${a.personel_surname}`.toLowerCase();
-          bValue = `${b.personel_name} ${b.personel_surname}`.toLowerCase();
-        }
-
-        if (this.sortDirection === 'asc') {
-          return aValue < bValue ? -1 : aValue > bValue ? 1 : 0;
-        } else {
-          return aValue > bValue ? -1 : aValue < bValue ? 1 : 0;
-        }
+        return matchesSearch;
       });
-    },
-    monthHeaders() {
-      if (this.dateRange.length === 0) return [];
-      
-      const months = [];
-      let currentMonth = null;
-      
-      this.dateRange.forEach(date => {
-        const monthKey = `${date.getFullYear()}-${date.getMonth()}`;
-        const monthName = date.toLocaleDateString("en-US", { month: "long" });
-        const year = date.getFullYear();
-        
-        if (!currentMonth || currentMonth.key !== monthKey) {
-          if (currentMonth) {
-            months.push(currentMonth);
-          }
-          currentMonth = {
-            key: monthKey,
-            name: monthName,
-            year: year,
-            days: 1
-          };
-        } else {
-          currentMonth.days++;
-        }
-      });
-      
-      if (currentMonth) {
-        months.push(currentMonth);
-      }
-      
-      return months;
     }
   },
   methods: {
-    
-    async getPersonnel() {
-      try {
-        const response = await axios.get("http://localhost:8000/personel");
-        this.personnel = response.data;
-        // Load projects for each personnel
-        await this.loadProjectsForAllPersonnel();
-      } catch (error) {
-        console.error('Error fetching personnel:', error);
-      }
-    },
-
-    // Get all projects and enrich each project with assigned_personel count
     async getProjects() {
       try {
+        this.loading = true;
+        this.error = false;
         const response = await axios.get("http://localhost:8000/projects");
-        this.projects = response.data || [];
-
-        // For each project, fetch assigned personnel and set assigned_personel count
-        const promises = this.projects.map(async (project) => {
-          try {
-            const res = await axios.get(`http://localhost:8000/projects/${project.project_id}/personel`);
-            // res.data should be an array of personel
-            project.personel = Array.isArray(res.data) ? res.data : (res.data ? Object.values(res.data) : []);
-            project.assigned_personel = Array.isArray(res.data) ? res.data.length : (project.personel ? project.personel.length : 0);
-          } catch (err) {
-            console.error(`Failed to fetch personel for project ${project.project_id}`, err);
-            project.personel = project.personel || [];
-            project.assigned_personel = project.assigned_personel || 0;
-          }
-        });
-
-        await Promise.all(promises);
+        this.projects = response.data;
       } catch (error) {
-        console.error('Error fetching projects:', error);
+        console.error("API failed to load", error);
+        this.error = true;
+      } finally {
+        this.loading = false;
       }
     },
 
-    async loadProjectsForAllPersonnel() {
-      try {
-        const promises = this.personnel.map(async (person) => {
-          try {
-            const response = await axios.get(`http://localhost:8000/personel/${person.personel_id}/projects`);
-            person.projects = response.data;
-          } catch (error) {
-            console.error(`Failed to load projects for personnel ${person.personel_id}`, error);
-            person.projects = [];
-          }
-        });
-        
-        await Promise.all(promises);
-      } catch (error) {
-        console.error("Failed to load projects data", error);
-      }
-    },
-
-    getProjectsOnDate(person, date) {
-      if (!person.projects || person.projects.length === 0) return [];
-      
-      return person.projects.filter(project => {
-        const startDate = new Date(project.date_start);
-        const endDate = this.calculateProjectEndDate(project);
-        return date >= startDate && date <= endDate && !this.isWeekend(date);
-      });
-    },
-
-    calculateProjectEndDate(project) {
-      const startDate = new Date(project.date_start);
-      const workingDays = project.duration || 0;
-      let currentDate = new Date(startDate);
-      
-      if (workingDays <= 1) {
-        return new Date(startDate);
-      }
-      
-      let additionalDaysNeeded = workingDays - 1;
-      let daysAdded = 0;
-      
-      while (daysAdded < additionalDaysNeeded) {
-        currentDate.setDate(currentDate.getDate() + 1);
-        if (currentDate.getDay() !== 0 && currentDate.getDay() !== 6) {
-          daysAdded++;
+    // Remove project method
+    async removeProject(project) {
+      if (confirm(`Are you sure you want to remove project "${project.project_name}"? This action cannot be undone.`)) {
+        try {
+          await axios.post(`http://localhost:8000/projects/${project.project_id}/remove`);
+          this.getProjects(); // Refresh the project list
+          alert('Project removed successfully!');
+        } catch (error) {
+          console.error("Failed to remove project", error);
+          alert('Failed to remove project. Please try again.');
         }
       }
-      
-      return new Date(currentDate);
     },
 
-    // Reused existing helper
-    getProjectCountClass(count) {
-      if (count === 1) return 'single-project';
-      if (count <= 3) return 'multiple-projects';
-      return 'many-projects';
+    // Get assigned personnel count
+    getAssignedPersonnelCount(project) {
+      return (project.personel || []).length;
     },
 
-    // Build dateRange (keeps weekends included in range but UI will mark them)
-    generateDates() {
-      const start = new Date(this.startDate);
-      this.dateRange = [];
-      for (let i = 0; i < this.calendarDays; i++) {
-        const d = new Date(start);
-        d.setDate(start.getDate() + i);
-        this.dateRange.push(d);
-      }
+    // Check if personnel assignment is sufficient
+    getPersonnelStatus(project) {
+      const assigned = this.getAssignedPersonnelCount(project);
+      const expected = project.expected_personel || 0;
+      return assigned >= expected ? 'sufficient' : 'insufficient';
     },
 
-    formatDateDay(date) {
-      if (!(date instanceof Date) || isNaN(date)) return '';
-      return date.getDate();
+    // Get count by role
+    getRoleCount(project, role) {
+      return (project.personel || []).filter(person => person.role === role).length;
     },
 
-    formatDateWeekday(date) {
-      if (!(date instanceof Date) || isNaN(date)) return '';
-      return date.toLocaleDateString("en-US", { weekday: "short" });
+    // Get count by vehicle type
+    getVehicleTypeCount(project, type) {
+      return (project.vehicles || []).filter(vehicle => vehicle.type === type).length;
     },
 
-    formatFullDate(date) {
-      if (!(date instanceof Date) || isNaN(date)) return '';
-      return date.toLocaleDateString("en-US", { 
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric'
-      });
+    // Open personnel breakdown modal
+    openPersonnelBreakdown(project) {
+      this.selectedProject = project;
+      this.showPersonnelBreakdown = true;
     },
 
-    isToday(date) {
-      if (!(date instanceof Date) || isNaN(date)) return false;
-      const today = new Date();
-      return date.toDateString() === today.toDateString();
+    // Open vehicles breakdown modal
+    openVehiclesBreakdown(project) {
+      this.selectedProject = project;
+      this.showVehiclesBreakdown = true;
     },
 
-    isWeekend(date) {
-      if (!(date instanceof Date) || isNaN(date)) return false;
-      return date.getDay() === 0 || date.getDay() === 6;
+    // Toggle dark mode
+    toggleDarkMode() {
+      this.darkMode = !this.darkMode;
     },
 
-    isMonthStart(date) {
-      if (!(date instanceof Date) || isNaN(date)) return false;
-      return date.getDate() === 1;
-    },
-
-    goToToday() {
-      this.startDate = new Date().toISOString().split('T')[0];
-      this.generateDates();
-    },
-
-    sortBy(field) {
-      if (this.sortField === field) {
-        this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
-      } else {
-        this.sortField = field;
-        this.sortDirection = 'asc';
-      }
-    },
-
-    onDateClick(person, date) {
-      const projectsOnDate = this.getProjectsOnDate(person, date);
-      if (projectsOnDate.length > 0) {
-        console.log(`Projects for ${person.personel_name} on ${date}:`, projectsOnDate);
-      }
-    },
-
-    // When a project chip is clicked we fetch latest personel for that project,
-    // assign it to the project object and open the ProjectInfo component.
-async onProjectClick(project) {
-    this.selectedProject = project;
-    this.selectedProjectPersonnel = await fetch(`/api/projects/${project.project_id}/personel`).then(r => r.json());
-    this.selectedProjectVehicles = await fetch(`/api/projects/${project.project_id}/vehicles`).then(r => r.json());
-  },
-
-    // Fetch project personnel and set assigned_personel and personel list
-    async fetchProjectPersonel(project) {
+    // Fetch complete personnel data with medical, xray, and education records
+    async fetchCompletePersonnelData(personelId) {
       try {
-        const res = await axios.get(`http://localhost:8000/projects/${project.project_id}/personel`);
-        project.personel = Array.isArray(res.data) ? res.data : (res.data ? Object.values(res.data) : []);
-        project.assigned_personel = Array.isArray(res.data) ? res.data.length : (project.personel ? project.personel.length : 0);
-      } catch (err) {
-        console.error(`Failed to fetch personel for project ${project.project_id}`, err);
-        project.personel = project.personel || [];
-        project.assigned_personel = project.assigned_personel || 0;
+        this.loadingPersonnel = true;
+        const response = await axios.get(`http://localhost:8000/personel/${personelId}`);
+        return response.data;
+      } catch (error) {
+        console.error("Failed to load personnel data", error);
+        alert('Failed to load personnel details. Please try again.');
+        return null;
+      } finally {
+        this.loadingPersonnel = false;
       }
     },
 
-    // NEW: returns all active projects on a date (used when person has no assigned projects)
-    getActiveProjectsOnDate(date) {
-      if (!this.projects || this.projects.length === 0) return [];
-      return this.projects.filter(project => {
-        const startDate = new Date(project.date_start);
-        const endDate = this.calculateProjectEndDate(project);
-        return date >= startDate && date <= endDate && !this.isWeekend(date);
-      });
+    // Open PersonelInfo with complete data
+    async openPersonelInfo(person) {
+      try {
+        this.loadingPersonnel = true;
+        const completePersonnelData = await this.fetchCompletePersonnelData(person.personel_id);
+        
+        if (completePersonnelData) {
+          this.selectedPersonnel = completePersonnelData;
+          this.showPersonelInfo = true;
+        }
+      } catch (error) {
+        console.error("Error opening personnel info", error);
+      } finally {
+        this.loadingPersonnel = false;
+      }
+    },
+
+    handlePersonnelUpdated() {
+      this.getProjects();
+    },
+
+    handlePersonnelRemoved() {
+      this.getProjects();
+      this.closeModals();
+    },
+
+    // Handle PersonelInfo events with data refresh
+    async handlePersonelUpdated() {
+      if (this.selectedPersonnel) {
+        const freshData = await this.fetchCompletePersonnelData(this.selectedPersonnel.personel_id);
+        if (freshData) {
+          this.selectedPersonnel = freshData;
+        }
+      }
+      this.getProjects();
+    },
+
+    // All record event handlers to refresh data
+    async handleMedicalCreated() {
+      if (this.selectedPersonnel) {
+        const freshData = await this.fetchCompletePersonnelData(this.selectedPersonnel.personel_id);
+        if (freshData) {
+          this.selectedPersonnel = freshData;
+        }
+      }
+    },
+
+    async handleXrayCreated() {
+      if (this.selectedPersonnel) {
+        const freshData = await this.fetchCompletePersonnelData(this.selectedPersonnel.personel_id);
+        if (freshData) {
+          this.selectedPersonnel = freshData;
+        }
+      }
+    },
+
+    async handleEducationCreated() {
+      if (this.selectedPersonnel) {
+        const freshData = await this.fetchCompletePersonnelData(this.selectedPersonnel.personel_id);
+        if (freshData) {
+          this.selectedPersonnel = freshData;
+        }
+      }
+    },
+
+    async handleMedicalRemoved() {
+      if (this.selectedPersonnel) {
+        const freshData = await this.fetchCompletePersonnelData(this.selectedPersonnel.personel_id);
+        if (freshData) {
+          this.selectedPersonnel = freshData;
+        }
+      }
+    },
+
+    async handleXrayRemoved() {
+      if (this.selectedPersonnel) {
+        const freshData = await this.fetchCompletePersonnelData(this.selectedPersonnel.personel_id);
+        if (freshData) {
+          this.selectedPersonnel = freshData;
+        }
+      }
+    },
+
+    async handleEducationRemoved() {
+      if (this.selectedPersonnel) {
+        const freshData = await this.fetchCompletePersonnelData(this.selectedPersonnel.personel_id);
+        if (freshData) {
+          this.selectedPersonnel = freshData;
+        }
+      }
+    },
+
+    // Close PersonelInfo modal
+    closePersonelInfo() {
+      this.showPersonelInfo = false;
+      this.selectedPersonnel = null;
+      this.loadingPersonnel = false;
+    },
+
+    // Handle project card opening from PersonelInfo
+    openProjectCardFromPersonel(project) {
+      this.selectedProject = project;
+      this.showProjectCard = true;
+      this.closePersonelInfo();
+    },
+
+    async createProject() {
+      try {
+        this.creating = true;
+        
+        if (!this.newProject.project_code || !this.newProject.project_name) {
+          alert('Please fill in Project Code and Project Name');
+          return;
+        }
+
+        const projectData = {
+          project_code: this.newProject.project_code,
+          project_name: this.newProject.project_name,
+          location: this.newProject.location || null,
+          duration: this.newProject.duration || null,
+          expected_personel: this.newProject.expected_personel || null,
+          crane: this.newProject.crane || 'No',
+          xy_map: this.newProject.xy_map || null,
+          date_start: this.newProject.date_start || null
+        };
+
+        const response = await axios.post("http://localhost:8000/projects/create", projectData);
+        
+        this.projects.push(response.data);
+        this.closeModals();
+        alert('Project created successfully!');
+        
+      } catch (error) {
+        console.error("Failed to create project", error);
+        alert('Failed to create project. Please try again.');
+      } finally {
+        this.creating = false;
+      }
+    },
+
+    openCreateForm() {
+      this.showCreateForm = true;
+      this.newProject = {
+        project_code: '',
+        project_name: '',
+        location: '',
+        duration: null,
+        expected_personel: null,
+        crane: 'No',
+        xy_map: '',
+        date_start: ''
+      };
     },
 
     getProjectStatus(project) {
       const today = new Date();
       const startDate = new Date(project.date_start);
-      const endDate = this.calculateProjectEndDate(project);
+      const endDate = project.date_end ? new Date(project.date_end) : null;
       
-      if (today < startDate) return 'upcoming';
-      if (today > endDate) return 'completed';
-      return 'active';
-    },
-
-    // Role-based styling (from personnel page)
-    getRoleClass(role) {
-      const roleMap = {
-        'Engineer': 'role-engineer',
-        'Worker': 'role-worker',
-        'Driver': 'role-driver',
-        'Manager': 'role-manager',
-        'Technician': 'role-technician'
-      };
-      return roleMap[role] || 'role-default';
-    },
-
-    // Validity status calculations (from personnel page)
-    getMedicalExpiration(person) {
-      if (!person.medicals || person.medicals.length === 0) return null;
-      const latestMedical = person.medicals.reduce((latest, current) => {
-        const currentDate = new Date(current.exam_date);
-        return currentDate > new Date(latest.exam_date) ? current : latest;
-      });
-      
-      const examDate = new Date(latestMedical.exam_date);
-      examDate.setFullYear(examDate.getFullYear() + 1);
-      return examDate.toISOString().split('T')[0];
-    },
-
-    getEducationExpiration(person) {
-      if (!person.education || person.education.length === 0) return null;
-      const latestEducation = person.education.reduce((latest, current) => {
-        const currentDate = new Date(current.education_date);
-        return currentDate > new Date(latest.education_date) ? current : latest;
-      });
-      
-      const educationDate = new Date(latestEducation.education_date);
-      educationDate.setFullYear(educationDate.getFullYear() + 3);
-      return educationDate.toISOString().split('T')[0];
-    },
-
-    getXrayExpiration(person) {
-      if (!person.xrays || person.xrays.length === 0) return null;
-      const latestXray = person.xrays.reduce((latest, current) => {
-        const currentDate = new Date(current.xrays_date);
-        return currentDate > new Date(latest.xrays_date) ? current : latest;
-      });
-      
-      const xrayDate = new Date(latestXray.xrays_date);
-      xrayDate.setFullYear(xrayDate.getFullYear() + 2);
-      return xrayDate.toISOString().split('T')[0];
-    },
-
-    getValidityStatus(person) {
-      const medicalExpiry = this.getMedicalExpiration(person);
-      const educationExpiry = this.getEducationExpiration(person);
-      const xrayExpiry = this.getXrayExpiration(person);
-
-      if (!medicalExpiry || !educationExpiry || !xrayExpiry) {
-        return 'INVALID';
+      if (startDate > today) {
+        return 'upcoming';
+      } else if ((!endDate || endDate >= today) && startDate <= today) {
+        return 'active';
+      } else {
+        return 'completed';
       }
-
-      const today = new Date();
-      let allValid = true;
-      let anyAlmost = false;
-
-      [medicalExpiry, educationExpiry, xrayExpiry].forEach(date => {
-        const expiryDate = new Date(date);
-        const diffTime = expiryDate - today;
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        
-        if (diffDays < 0) {
-          allValid = false;
-        } else if (diffDays <= 60) {
-          anyAlmost = true;
-          allValid = false;
-        }
-      });
-
-      if (allValid) return 'VALID';
-      if (anyAlmost) return 'ALMOST';
-      return 'INVALID';
     },
 
-  closeProjectInfo() {
-    this.selectedProject = null;
-  }
+    getProjectStatusText(project) {
+      const status = this.getProjectStatus(project);
+      const statusMap = {
+        'upcoming': 'Upcoming',
+        'active': 'Active',
+        'completed': 'Completed'
+      };
+      return statusMap[status];
+    },
+
+    getMapsLink(coordinates) {
+      if (!coordinates) return '#';
+      const [lat, lng] = coordinates.split(', ').map(coord => parseFloat(coord));
+      return `https://www.google.com/maps?q=${lat},${lng}`;
+    },
+
+    formatDate(dateString) {
+      if (!dateString) return 'N/A';
+      const options = { year: 'numeric', month: 'short', day: 'numeric' };
+      return new Date(dateString).toLocaleDateString('en-US', options);
+    },
+
+    // Modal methods
+    openProjectCard(project) {
+      this.selectedProject = project;
+      this.showProjectCard = true;
+    },
+
+    openVehicleCard(vehicle) {
+      this.selectedVehicle = vehicle;
+      this.showVehicleCard = true;
+    },
+
+    openPersonnelForm(project) {
+      this.selectedProject = project;
+      this.showPersonnelForm = true;
+    },
+
+    openVehiclesForm(project) {
+      this.selectedProject = project;
+      this.showVehiclesForm = true;
+    },
+
+    closeModals() {
+      this.showProjectCard = false;
+      this.showPersonelInfo = false;
+      this.showVehicleCard = false;
+      this.showPersonnelForm = false;
+      this.showVehiclesForm = false;
+      this.showCreateForm = false;
+      this.showPersonnelBreakdown = false;
+      this.showVehiclesBreakdown = false;
+      this.selectedProject = null;
+      this.selectedPersonnel = null;
+      this.selectedVehicle = null;
+      this.loadingPersonnel = false;
+    },
+
+    calculateEndDate(project) {
+      if (!project.date_start || !project.duration) {
+        return '—';
+      }
+      
+      const startDate = new Date(project.date_start);
+      const workingDays = parseInt(project.duration);
+      
+      let currentDate = new Date(startDate);
+      let daysAdded = 1;
+      
+      while (daysAdded < workingDays) {
+        currentDate.setDate(currentDate.getDate() + 1);
+        const dayOfWeek = currentDate.getDay();
+        if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+          daysAdded++;
+        }
+      }
+      
+      return this.formatDate(currentDate);
+    }
   },
   mounted() {
-    this.getPersonnel();
     this.getProjects();
-    this.generateDates();
   }
-};
+}
 </script>
 
 <style scoped>
-/* Reuse calendar styles from projects */
-.calendar-view {
-  max-width: 100%;
-  padding: 24px;
+/* Reset to original light mode styling */
+.project-dashboard {
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 20px;
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  background: #f8fafc;
+  background-color: #ffffff;
+  color: #2d3748;
   min-height: 100vh;
 }
 
-.calendar-header {
-  background: white;
-  padding: 20px;
-  border-radius: 8px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  margin-bottom: 20px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  border: 1px solid #e2e8f0;
-}
-
-.title {
-  font-size: 1.5rem;
-  margin: 0;
-  color: #1a365d;
-  font-weight: 600;
-}
-
-.header-controls {
-  display: flex;
-  gap: 16px;
-  align-items: center;
-}
-
-.control-group {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.control-label {
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: #4a5568;
-}
-
-.input-with-button {
-  display: flex;
-  gap: 4px;
-  align-items: center;
-}
-
-.days-input, .date-input {
-  padding: 6px 8px;
-  border: 1px solid #d1d5db;
-  border-radius: 4px;
-  font-size: 0.8rem;
-  transition: all 0.2s ease;
-  width: 70px;
-  background: white;
-}
-
-.days-input:focus, .date-input:focus {
-  outline: none;
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
-}
-
-.refresh-btn, .today-btn {
-  padding: 6px 12px;
-  background: #3b82f6;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 0.8rem;
-  font-weight: 500;
-  transition: all 0.2s ease;
-}
-
-.refresh-btn:hover, .today-btn:hover {
-  background: #2563eb;
-}
-
-.table-container {
-  max-width: 100%;
-  overflow-x: auto;
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  position: relative;
-  border: 1px solid #e2e8f0;
-}
-
-.calendar-table {
-  width: max-content;
-  border-collapse: collapse;
-  min-width: 100%;
-}
-
-/* Month Header Styles */
-.month-header {
-  position: sticky;
-  top: 0;
-  z-index: 40;
-}
-
-.month-header-cell {
-  background: #374151;
-  color: white;
-  font-weight: 600;
-  font-size: 0.8rem;
-  padding: 10px 4px;
+.dashboard-header {
   text-align: center;
-  border-left: 1px solid #4b5563;
-}
-
-.month-col {
-  background: #1f2937;
+  margin-bottom: 30px;
+  padding: 30px 20px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
-  font-weight: 600;
-  font-size: 0.8rem;
-  padding: 10px;
-  text-align: center;
-}
-
-/* Date Header Styles */
-.date-header {
-  position: sticky;
-  top: 39px; /* Height of month header */
-  z-index: 35;
-}
-
-.date-header-cell {
-  background: #f9fafb;
-  font-weight: 500;
-  border-left: 1px solid #e5e7eb;
-  border-bottom: 2px solid #e5e7eb;
-  padding: 6px 4px;
-  text-align: center;
-  font-size: 0.7rem;
-  min-width: 40px;
-  max-width: 40px;
-  height: 45px;
-  box-sizing: border-box;
-}
-
-.date-header-cell.today {
-  background: #dbeafe;
-  color: #1e40af;
-}
-
-.date-header-cell.weekend {
-  background: #fef2f2;
-  color: #dc2626;
-}
-
-.date-header-cell.month-start {
-  border-left: 2px solid #9ca3af;
-}
-
-.date-content {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-}
-
-.date-day {
-  font-size: 0.8rem;
-  font-weight: 600;
-}
-
-.date-weekday {
-  font-size: 0.6rem;
-  opacity: 0.8;
-  text-transform: uppercase;
-}
-
-/* Sticky Columns - Adjusted for personnel */
-.sticky-col {
-  position: sticky;
-  left: 0;
-  background: #f9fafb;
-  z-index: 30;
-  border-right: 1px solid #e5e7eb;
-  transition: all 0.2s ease;
-}
-
-.col-name {
-  min-width: 180px;
-  max-width: 180px;
-  left: 0;
-  z-index: 31;
-}
-
-.col-role {
-  min-width: 120px;
-  max-width: 120px;
-  left: 180px;
-  z-index: 32;
-}
-
-.col-status {
-  min-width: 100px;
-  max-width: 100px;
-  left: 300px;
-  z-index: 33;
-}
-
-/* Interactive sticky columns */
-.sticky-col:hover {
-  background: #f3f4f6;
-  cursor: pointer;
+  border-radius: 12px;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
 }
 
 .header-content {
   display: flex;
-  align-items: center;
   justify-content: space-between;
-  padding: 0 8px;
+  align-items: center;
+}
+
+h1 {
+  font-size: 2rem;
+  margin-bottom: 0;
+  font-weight: 400;
+}
+
+.dark-mode-toggle {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: all 0.3s ease;
+}
+
+.dark-mode-toggle:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: translateY(-1px);
+}
+
+.controls {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 25px;
+  flex-wrap: wrap;
+  gap: 15px;
+  background: white;
+  padding: 20px;
+  border-radius: 10px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+  border: 1px solid #e2e8f0;
+}
+
+.search-box {
+  flex: 1;
+  min-width: 300px;
+}
+
+.search-box input {
+  width: 100%;
+  padding: 14px 18px;
+  border: 2px solid #e1e5e9;
+  border-radius: 8px;
+  font-size: 1rem;
+  transition: all 0.3s ease;
+  background: #f8f9fa;
+}
+
+.search-box input:focus {
+  outline: none;
+  border-color: #667eea;
+  background: white;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.filter-controls {
+  display: flex;
+  gap: 15px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.btn-create {
+  background: #10b981;
+  color: white;
+  padding: 14px 20px;
+  border: none;
+  border-radius: 8px;
   font-weight: 600;
-  font-size: 0.75rem;
-  color: #374151;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+  font-size: 0.9rem;
 }
 
-.sort-indicator {
-  font-size: 0.7rem;
-  color: #6b7280;
+.btn-create:hover {
+  background: #059669;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
 }
 
-/* Body cells */
-.calendar-table tbody td {
-  padding: 4px;
-  text-align: center;
-  font-size: 0.7rem;
-  min-width: 40px;
-  max-width: 40px;
-  transition: all 0.2s ease;
-  border-bottom: 1px solid #e5e7eb;
-  height: 35px;
-  box-sizing: border-box;
-  border-left: 1px solid #e5e7eb;
+.table-container {
+  background-color: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+  margin-bottom: 30px;
+  border: 1px solid #e2e8f0;
 }
 
-/* Personnel Rows */
-.personnel-row:hover {
-  background: #f9fafb !important;
-}
-
-.personnel-row:hover .sticky-col {
-  background: #f3f4f6;
-}
-
-/* Personnel info styling */
-.personnel-info {
-  text-align: left;
-  padding: 0 8px;
-}
-
-.personnel-name {
-  font-weight: 500;
-  color: #1f2937;
-  display: block;
+/* FIXED: Proper table grid styling */
+.bordered-table {
+  width: 100%;
+  border-collapse: collapse;
   font-size: 0.8rem;
-  line-height: 1.3;
+  border: 1px solid #d1d5db;
 }
 
-/* Role Cell Styling */
-.role-cell {
-  text-align: center;
-  padding: 4px 2px;
+.bordered-table th {
+  background: #4a3b8a;
+  padding: 8px 6px;
+  text-align: left;
+  font-weight: 600;
+  color: white;
+  border-bottom: 2px solid #d1d5db;
+  border-right: 1px solid #5a4a9a;
+  position: sticky;
+  top: 0;
+  white-space: nowrap;
+}
+
+.bordered-table th:last-child {
+  border-right: 1px solid #5a4a9a;
+}
+
+.bordered-table td {
+  padding: 6px 4px;
+  border-bottom: 1px solid #e5e7eb;
+  border-right: 1px solid #e5e7eb;
+  vertical-align: top;
+  height: 32px; /* Even shorter rows */
+}
+
+.bordered-table td:last-child {
+  border-right: 1px solid #e5e7eb;
+}
+
+.bordered-table tr:last-child td {
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.bordered-table tr:hover {
+  background-color: #f8fafc;
+}
+
+.cell-bordered {
+  border-right: 1px solid #e5e7eb !important;
+}
+
+.cell-bordered:last-child {
+  border-right: 1px solid #e5e7eb !important;
+}
+
+/* Even narrower column widths */
+.col-code { width: 55px; }
+.col-name { width: 90px; }
+.col-location { width: 65px; }
+.col-duration { width: 55px; }
+.col-expected { width: 55px; }
+.col-assigned { width: 55px; }
+.col-personnel-breakdown { width: 70px; } /* Shorter */
+.col-vehicles-breakdown { width: 70px; } /* Shorter */
+.col-crane { width: 45px; }
+.col-map { width: 35px; }
+.col-start { width: 75px; }
+.col-end { width: 75px; }
+.col-actions { width: 170px; min-width: 170px; }
+
+.project-code {
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-weight: 600;
+  color: #2d3748;
+  background: #f7fafc;
+  padding: 2px 4px;
   border-radius: 4px;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  min-height: 25px;
-  justify-content: center;
-  align-items: center;
-  border: 1px solid transparent;
+  border: 1px solid #e2e8f0;
   font-size: 0.7rem;
-  font-weight: 600;
+  display: inline-block;
 }
 
-.role-engineer {
-  background: #e3f2fd;
-  color: #1976d2;
-  border-color: #90caf9;
+.clickable {
+  cursor: pointer;
+  transition: all 0.2s ease;
 }
 
-.role-worker {
-  background: #e8f5e8;
-  color: #2e7d32;
-  border-color: #a5d6a7;
+.clickable:hover {
+  background: #e2e8f0;
+  transform: translateY(-1px);
 }
 
-.role-driver {
-  background: #fff3e0;
-  color: #ef6c00;
-  border-color: #ffcc80;
-}
-
-.role-manager {
-  background: #f3e5f5;
-  color: #7b1fa2;
-  border-color: #ce93d8;
-}
-
-.role-technician {
-  background: #e0f2f1;
-  color: #00695c;
-  border-color: #80cbc4;
-}
-
-.role-default {
-  background: #f5f5f5;
-  color: #616161;
-  border-color: #e0e0e0;
-}
-
-.role-text {
+.location-badge {
+  background: #edf2f7;
+  padding: 2px 5px;
+  border-radius: 10px;
   font-size: 0.65rem;
-  font-weight: 600;
+  font-weight: 500;
+  color: #4a5568;
+  display: inline-block;
 }
 
-/* Status Cell Styling */
-.status-cell {
+.duration-cell, .personnel-count {
   text-align: center;
-  padding: 4px 2px;
-  border-radius: 4px;
   display: flex;
   flex-direction: column;
-  gap: 1px;
-  min-height: 25px;
-  justify-content: center;
   align-items: center;
-  border: 1px solid transparent;
-  font-size: 0.65rem;
+  gap: 1px;
+}
+
+.duration-value, .count {
+  font-size: 0.75rem;
   font-weight: 700;
+}
+
+.duration-unit, .label {
+  font-size: 0.6rem;
+  color: #718096;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 
-.status-text {
-  font-size: 0.6rem;
+.count.sufficient {
+  color: #276749;
 }
 
-.status-VALID {
-  background-color: #10b981;
-  color: white;
-  border: 1px solid #059669;
+.count.insufficient {
+  color: #c53030;
 }
 
-.status-ALMOST {
-  background-color: #f59e0b;
-  color: white;
-  border: 1px solid #d97706;
-}
-
-.status-INVALID {
-  background-color: #ef4444;
-  color: white;
-  border: 1px solid #dc2626;
-}
-
-/* Calendar Cells */
-.calendar-cell {
-  position: relative;
-  background: #ffffff;
-  border-left: 1px solid #e5e7eb;
-  padding: 0;
-}
-
-.calendar-cell.weekend {
-  background: #fef2f2;
-}
-
-.calendar-cell.today {
-  background: #dbeafe;
-}
-
-.calendar-cell.clickable {
-  cursor: pointer;
-}
-
-.calendar-cell.clickable:hover {
-  background: #f3f4f6;
-  z-index: 10;
-}
-
-.cell-content {
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 1px;
-}
-
-/* Projects Container */
-.projects-container {
+/* FIXED: Even more compact breakdown cells */
+.breakdown-cell {
   display: flex;
   flex-direction: column;
   gap: 1px;
-  width: 100%;
-  height: 100%;
   padding: 1px;
+}
+
+.breakdown-row {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.breakdown-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0px 2px;
   border-radius: 2px;
+  background: #f7fafc;
+  font-size: 0.6rem;
+  min-height: 14px;
 }
 
-.projects-container.single-project {
-  background: #10b981; /* Green for single project */
+.breakdown-count {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: #2d3748;
 }
 
-.projects-container.multiple-projects {
-  background: #f59e0b; /* Yellow for 2-3 projects */
+.breakdown-label {
+  font-size: 0.55rem;
+  color: #718096;
+  text-transform: uppercase;
 }
 
-.projects-container.many-projects {
-  background: #ef4444; /* Red for more than 3 projects */
+/* FIXED: Crane text to fit in column */
+.crane-text {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 2px 4px;
+  border-radius: 3px;
+  display: inline-block;
+  text-align: center;
+  width: 100%;
+  box-sizing: border-box;
 }
-table td, table th {
-  min-width: 70px !important;
+
+.crane-text.has-crane {
+  background: #c6f6d5;
+  color: #276749;
 }
-.fixed-column {
-  position: sticky;
+
+.crane-text.no-crane {
+  background: #fed7d7;
+  color: #c53030;
+}
+
+.map-link-simple {
+  color: #667eea;
+  text-decoration: none;
+  font-weight: 500;
+  font-size: 0.7rem;
+  transition: color 0.2s ease;
+  text-align: center;
+  display: block;
+}
+
+.map-link-simple:hover {
+  color: #5a67d8;
+  text-decoration: underline;
+}
+
+.map-link-simple.disabled {
+  color: #a0aec0;
+  cursor: not-allowed;
+  text-decoration: none;
+}
+
+.date-cell {
+  text-align: center;
+}
+
+.date {
+  font-weight: 500;
+  color: #2d3748;
+  background: #f7fafc;
+  padding: 2px 4px;
+  border-radius: 3px;
+  border: 1px solid #e2e8f0;
+  font-size: 0.7rem;
+  display: inline-block;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 3px;
+  justify-content: center;
+}
+
+.btn {
+  padding: 3px 6px;
+  border: none;
+  border-radius: 3px;
+  font-size: 0.65rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: center;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 40px;
+}
+
+.btn-personnel {
+  background: #4caf50;
+  color: white;
+}
+
+.btn-personnel:hover {
+  background: #45a049;
+  transform: translateY(-1px);
+}
+
+.btn-vehicles {
+  background: #2196f3;
+  color: white;
+}
+
+.btn-vehicles:hover {
+  background: #1976d2;
+  transform: translateY(-1px);
+}
+
+.btn-remove {
+  background: #dc2626;
+  color: white;
+}
+
+.btn-remove:hover {
+  background: #b91c1c;
+  transform: translateY(-1px);
+}
+
+/* FIXED: Modal positioning - all modals should be fixed overlay */
+.modal-overlay {
+  position: fixed;
+  top: 0;
   left: 0;
-  background: white;
-  z-index: 2;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
 }
 
-.fixed-column:nth-child(1) { width: 180px; left: 0; }
-.fixed-column:nth-child(2) { width: 120px; left: 180px; }
-.fixed-column:nth-child(3) { width: 100px; left: 300px; }
+.modal-content {
+  background: white;
+  position: relative;
+  padding: 0;
+  border-radius: 12px;
+  max-width: 500px;
+  width: 90%;
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+  border: 1px solid #e2e8f0;
+}
 
-/* Project Chips */
-/* Adjust unassigned-cell style */
-.no-projects-container {
-  background: #f3f4f6;
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px;
+  border-bottom: 1px solid #e2e8f0;
+  background: #f8f9fa;
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 1.3rem;
+  color: #2d3748;
+}
+
+.modal-close-btn {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: #6b7280;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+}
+
+.modal-close-btn:hover {
+  background-color: #e5e7eb;
+  color: #374151;
+}
+
+.create-modal {
+  max-width: 600px;
+}
+
+.create-form {
+  padding: 20px;
+}
+
+/* Breakdown modals */
+.breakdown-modal {
+  max-width: 350px;
+  max-height: 60vh;
+}
+
+.breakdown-content {
+  padding: 15px;
+  max-height: 50vh;
+  overflow-y: auto;
+}
+
+.personnel-item, .vehicle-item {
+  padding: 8px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  margin-bottom: 6px;
+  background: #f8f9fa;
+  transition: all 0.2s ease;
+}
+
+.personnel-item:hover, .vehicle-item:hover {
+  background: #e2e8f0;
+  transform: translateY(-1px);
+}
+
+.personnel-info, .vehicle-info {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  width: 100%;
-  height: 100%;
-  padding: 1px;
-  border-radius: 4px;
-  align-items: center;
-  justify-content: center;
 }
 
-/*
-.project-chip-ok {
-  background: #d1d5db; 
-  color: #374151;
-  font-size: 0.7rem;
-  padding: 1px 3px;
-  border-radius: 3px;
+.person-name, .vehicle-name {
+  font-weight: 600;
+  font-size: 0.85rem;
 }
-*/
 
-.project-chip-need {
-  background: #fecaca; /* very soft red */
-  color: #991b1b;
-  font-size: 0.7rem;
-  padding: 1px 3px;
-  border-radius: 3px;
+.person-role, .vehicle-type {
+  font-size: 0.75rem;
+  color: #718096;
 }
-.project-chip {
-  font-size: 0.55rem;
-  font-weight: 700;
-  color: white;
-  background: rgba(0, 0, 0, 0.25);
-  padding: 2px 4px;
-  border-radius: 3px;
-  cursor: pointer;
+
+.no-items {
   text-align: center;
-  line-height: 1;
-  transition: all 0.15s ease;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  color: #718096;
+  font-style: italic;
+  padding: 20px;
 }
 
-.project-chip:hover {
-  transform: scale(1.03);
+/* Dark mode styles */
+.dark-mode .project-dashboard {
+  background-color: #1a202c;
+  color: #f7fafc;
 }
 
-/* NO-PROJECTS container (light grey background for the cell) */
-.no-projects-container {
-  background: #e5e7eb; /* light grey */
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  width: 100%;
-  height: 100%;
-  padding: 4px;
-  border-radius: 2px;
-  align-items: center;
-  justify-content: center;
+.dark-mode .dashboard-header {
+  background: linear-gradient(135deg, #2d3748 0%, #1a202c 100%);
 }
 
-/* Project chip when project has enough personnel */
-.project-chip-ok {
-  background: #6b7280; /* neutral grey hue */
-  color: white;
-  border: 1px solid rgba(255,255,255,0.06);
+.dark-mode .controls {
+  background: #2d3748;
+  border-color: #4a5568;
 }
 
-/* Project chip when project needs more personnel (soft red) */
-.project-chip-need {
-  background: #fca5a5; /* soft red hue */
-  color: white;
-  border: 1px solid rgba(255,255,255,0.06);
+.dark-mode .table-container {
+  background: #2d3748;
+  border-color: #4a5568;
 }
 
-/* Alternating row colors */
-.calendar-table tbody tr:nth-child(even) {
-  background: #fafafa;
+.dark-mode .bordered-table {
+  border-color: #4a5568;
 }
 
-.calendar-table tbody tr:nth-child(even) .sticky-col {
-  background: #f3f4f6;
+.dark-mode .bordered-table th {
+  background: #2d3748;
+  border-color: #4a5568;
 }
 
-/* Modal / ProjectInfo wrapper styles are not needed here because ProjectInfo controls its presentation. */
-/* If ProjectInfo needs an overlay container, you can wrap it or style accordingly. */
+.dark-mode .bordered-table td {
+  border-color: #4a5568;
+  background: #2d3748;
+}
 
-/* Responsive Design */
+.dark-mode .bordered-table tr:hover td {
+  background: #4a5568;
+}
+
+.dark-mode .modal-content {
+  background: #2d3748;
+  border-color: #4a5568;
+  color: #f7fafc;
+}
+
+.dark-mode .modal-header {
+  background: #4a5568;
+  border-color: #718096;
+}
+
+/* Rest of existing styles... */
+
+@media (max-width: 1200px) {
+  .table-container {
+    overflow-x: auto;
+  }
+  
+  .bordered-table {
+    min-width: 1200px;
+  }
+}
+
 @media (max-width: 768px) {
-  .calendar-header {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 12px;
-  }
-  
-  .header-controls {
-    justify-content: space-between;
-  }
-  
-  .sticky-col {
-    width: auto;
-  }
-  
-  .col-name {
-    min-width: 140px;
-    max-width: 140px;
-  }
-  
-  .col-role {
-    min-width: 100px;
-    max-width: 100px;
-    left: 140px;
-  }
-  
-  .col-status {
-    min-width: 80px;
-    max-width: 80px;
-    left: 240px;
-  }
-  
-  .calendar-table th,
-  .calendar-table td {
-    min-width: 35px;
-    max-width: 35px;
-    padding: 2px;
-    font-size: 0.65rem;
-  }
-  
-  .month-header-cell,
-  .month-col {
-    font-size: 0.7rem;
-    padding: 6px 2px;
-  }
-
-  .modal-actions {
+  .controls {
     flex-direction: column;
   }
   
-  .btn {
-    width: 100%;
+  .search-box {
+    min-width: 100%;
+  }
+  
+  .dashboard-header {
+    padding: 20px 15px;
+  }
+  
+  h1 {
+    font-size: 1.6rem;
+  }
+  
+  .header-content {
+    flex-direction: column;
+    gap: 15px;
+    text-align: center;
+  }
+  
+  .action-buttons {
+    flex-direction: row;
+    flex-wrap: wrap;
   }
 }
-
-/* Smooth scrolling */
-.table-container {
-  scroll-behavior: smooth;
-}
-
-
-.project-info-modal {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.45);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 3000;
-}
-
-.project-info-container {
-  background: white;
-  border-radius: 12px;
-  max-width: 80vw;
-  max-height: 90vh;
-  overflow-y: auto;
-  padding: 1rem;
-  box-shadow: 0 10px 25px rgba(0,0,0,0.25);
-  animation: fadeIn 0.25s ease;
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
 </style>
