@@ -1,8 +1,10 @@
 package com.planner.Project_Planner.services;
 
 import com.planner.Project_Planner.domainDTO.DTOEducations;
+import com.planner.Project_Planner.domainDTO.DTOMedicals;
 import com.planner.Project_Planner.domainDTO.DTOProjects;
 import com.planner.Project_Planner.entity.Educations;
+import com.planner.Project_Planner.entity.Medicals;
 import com.planner.Project_Planner.entity.Personel;
 import com.planner.Project_Planner.entity.Projects;
 import com.planner.Project_Planner.mapDTO.MapDTO;
@@ -56,6 +58,23 @@ public class EducationsService {
             existing.setFirst_time(updates.getFirst_time());
         }
         return educationsRepository.save(existing);
+    }
+
+    public void removeEducaton(Long education_id) {
+        educationsRepository.deleteById(education_id);
+    }
+
+    public Educations createEducations(DTOEducations dto) {
+        Personel person = personelRepository.findById(dto.getPersonel_id())
+                .orElseThrow(() -> new RuntimeException("Personel not found"));
+
+        Educations educations = new Educations();
+        educations.setEducation_date(dto.getEducation_date());
+        educations.setEducation_expiration_date(dto.getEducation_date().plusYears(3));
+        educations.setFirst_time(dto.getFirst_time());// example
+        educations.setPersonel(person); // <--- link to person
+
+        return educationsRepository.save(educations);
     }
 
 }

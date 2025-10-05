@@ -37,5 +37,10 @@ public class ControllerEducations {
         return educationsService.updateEducation(education_id, updates);
     }
 
+    @PostMapping("/educations/{education_id}/remove")
+    public void removeEducationById(@PathVariable Long education_id){
+        educationsService.removeEducaton(education_id);
+    }
+
 
 }

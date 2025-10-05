@@ -1,12 +1,15 @@
 package com.planner.Project_Planner.controller;
 
 import com.planner.Project_Planner.domainDTO.DTOProjects;
+import com.planner.Project_Planner.entity.Personel;
 import com.planner.Project_Planner.entity.Projects;
+import com.planner.Project_Planner.entity.Vehicles;
 import com.planner.Project_Planner.services.ProjectsService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Set;
 
 @RestController
 @CrossOrigin(origins = "http://localhost:8080")
@@ -23,6 +26,16 @@ public class ControllerProjects {
     @GetMapping("/projects/{project_id}")
     public Projects getProjectById(@PathVariable Long project_id){
         return projectsService.getProjectById(project_id);
+    }
+
+    @GetMapping("/projects/{project_id}/personel")
+    public Set<Personel> getPersonelById(@PathVariable Long project_id){
+        return projectsService.getPersonelByProjectId(project_id);
+    }
+
+    @GetMapping("/projects/{project_id}/vehicles")
+    public Set<Vehicles> getVehiclesById(@PathVariable Long project_id){
+        return projectsService.getVehiclesByProjectId(project_id);
     }
 
     @PostMapping("/projects/create")
@@ -56,5 +69,12 @@ public class ControllerProjects {
             @RequestBody DTOProjects updates) {
         return projectsService.updateProject(project_id, updates);
     }
+
+    @PostMapping("/projects/{project_id}/remove")
+    public void removeProject(@PathVariable Long project_id){
+        projectsService.removeProjectById(project_id);
+    }
+
+
 
 }
