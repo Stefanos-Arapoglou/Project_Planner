@@ -29,6 +29,9 @@ export default {
       errorMessage: ''
     }
   },
+  mounted() {
+  localStorage.removeItem('isAuthenticated');
+},
   methods: {
     async handleLogin() {
       try {

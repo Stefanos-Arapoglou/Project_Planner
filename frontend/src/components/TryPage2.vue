@@ -1,13 +1,8 @@
 <template>
-  <div class="project-dashboard" :class="{ 'dark-mode': darkMode }">
-    <header class="dashboard-header">
-      <div class="header-content">
+  <div class="project-dashboard">
+    <div class="dashboard-header">
         <h1>Project Management Dashboard</h1>
-        <button class="dark-mode-toggle" @click="toggleDarkMode">
-          {{ darkMode ? '☀️ Light' : '🌙 Dark' }}
-        </button>
-      </div>
-    </header>
+    </div>
 
     <div class="controls">
       <div class="search-box">
@@ -72,14 +67,9 @@
                 <span class="label">people</span>
               </div>
             </td>
-            <td class="col-assigned cell-bordered">
+            <td class="col-assigned cell-bordered" :class="getPersonnelStatusClass(project)">
               <div class="personnel-count">
-                <span 
-                  :class="[
-                    'count', 
-                    getPersonnelStatus(project) === 'sufficient' ? 'sufficient' : 'insufficient'
-                  ]"
-                >
+                <span class="count">
                   {{ getAssignedPersonnelCount(project) }}
                 </span>
                 <span class="label">assigned</span>
@@ -87,33 +77,37 @@
             </td>
             <td class="col-personnel-breakdown cell-bordered">
               <div class="breakdown-cell clickable" @click="openPersonnelBreakdown(project)">
-                <div class="breakdown-item">
-                  <span class="breakdown-count">{{ getRoleCount(project, 'Engineer') }}</span>
-                  <span class="breakdown-label">Eng</span>
-                </div>
-                <div class="breakdown-item">
-                  <span class="breakdown-count">{{ getRoleCount(project, 'Worker') }}</span>
-                  <span class="breakdown-label">Wkr</span>
-                </div>
-                <div class="breakdown-item">
-                  <span class="breakdown-count">{{ getRoleCount(project, 'Driver') }}</span>
-                  <span class="breakdown-label">Drv</span>
+                <div class="breakdown-row">
+                  <div class="breakdown-item">
+                    <span class="breakdown-count">{{ getRoleCount(project, 'Engineer') }}</span>
+                    <span class="breakdown-label">Eng</span>
+                  </div>
+                  <div class="breakdown-item">
+                    <span class="breakdown-count">{{ getRoleCount(project, 'Worker') }}</span>
+                    <span class="breakdown-label">Wkr</span>
+                  </div>
+                  <div class="breakdown-item">
+                    <span class="breakdown-count">{{ getRoleCount(project, 'Driver') }}</span>
+                    <span class="breakdown-label">Drv</span>
+                  </div>
                 </div>
               </div>
             </td>
             <td class="col-vehicles-breakdown cell-bordered">
               <div class="breakdown-cell clickable" @click="openVehiclesBreakdown(project)">
-                <div class="breakdown-item">
-                  <span class="breakdown-count">{{ getVehicleTypeCount(project, 'Truck') }}</span>
-                  <span class="breakdown-label">Truck</span>
-                </div>
-                <div class="breakdown-item">
-                  <span class="breakdown-count">{{ getVehicleTypeCount(project, 'Car') }}</span>
-                  <span class="breakdown-label">Car</span>
-                </div>
-                <div class="breakdown-item">
-                  <span class="breakdown-count">{{ getVehicleTypeCount(project, 'Other') }}</span>
-                  <span class="breakdown-label">Other</span>
+                <div class="breakdown-row">
+                  <div class="breakdown-item">
+                    <span class="breakdown-count">{{ getVehicleTypeCount(project, 'IX') }}</span>
+                    <span class="breakdown-label">IX</span>
+                  </div>
+                  <div class="breakdown-item">
+                    <span class="breakdown-count">{{ getVehicleTypeCount(project, 'Crane') }}</span>
+                    <span class="breakdown-label">Crn</span>
+                  </div>
+                  <div class="breakdown-item">
+                    <span class="breakdown-count">{{ getVehicleTypeCount(project, 'Transit') }}</span>
+                    <span class="breakdown-label">Trs</span>
+                  </div>
                 </div>
               </div>
             </td>
@@ -168,10 +162,13 @@
       </div>
     </div>
 
-    <!-- Create Project Modal -->
+    <!-- CREATE PROJECT MODAL - FIXED POSITION -->
     <div v-if="showCreateForm" class="modal-overlay">
       <div class="modal-content create-modal" @click.stop>
-        <h3>Create New Project</h3>
+        <div class="modal-header">
+          <h3>Create New Project</h3>
+          <button class="modal-close-btn" @click="closeModals">×</button>
+        </div>
         <form @submit.prevent="createProject" class="create-form">
           <div class="form-row">
             <div class="form-group">
@@ -281,6 +278,7 @@
     <!-- Personel Info Modal -->
     <div v-if="showPersonelInfo" class="modal-overlay personel-info-overlay">
       <div class="modal-content personel-info-modal" @click.stop>
+
         <div v-if="loadingPersonnel" class="personel-loading">
           <div class="spinner"></div>
           Loading personnel data...
@@ -302,18 +300,18 @@
     </div>
 
     <!-- Personnel Breakdown Modal -->
-    <div v-if="showPersonnelBreakdown && selectedProject" class="modal-overlay" @click="closeModals">
+    <div v-if="showPersonnelBreakdown && selectedProject" class="modal-overlay" @click="closePersonnelBreakdown">
       <div class="modal-content breakdown-modal" @click.stop>
-        <div class="breakdown-header">
+        <div class="modal-header">
           <h3>Personnel - {{ selectedProject.project_name }}</h3>
-          <button class="modal-close-btn" @click="closeModals">×</button>
+          <button class="modal-close-btn" @click="closePersonnelBreakdown">×</button>
         </div>
         <div class="breakdown-content">
           <div 
             v-for="person in (selectedProject.personel || [])" 
             :key="person.personel_id"
             class="personnel-item clickable"
-            @click="openPersonelInfo(person)"
+            @click="openPersonelInfoFromBreakdown(person)"
           >
             <div class="personnel-info">
               <span class="person-name">{{ person.personel_name }} {{ person.personel_surname }}</span>
@@ -330,7 +328,7 @@
     <!-- Vehicles Breakdown Modal -->
     <div v-if="showVehiclesBreakdown && selectedProject" class="modal-overlay" @click="closeModals">
       <div class="modal-content breakdown-modal" @click.stop>
-        <div class="breakdown-header">
+        <div class="modal-header">
           <h3>Vehicles - {{ selectedProject.project_name }}</h3>
           <button class="modal-close-btn" @click="closeModals">×</button>
         </div>
@@ -356,6 +354,10 @@
     <!-- Vehicle Card Modal -->
     <div v-if="showVehicleCard && selectedVehicle" class="modal-overlay" @click="closeModals">
       <div class="modal-content" @click.stop>
+        <div class="modal-header">
+          <h3>Vehicle Details</h3>
+          <button class="modal-close-btn" @click="closeModals">×</button>
+        </div>
         <VehiclesCard 
           :vehicle="selectedVehicle"
           :projectId="selectedProject?.project_id"
@@ -423,7 +425,6 @@ export default {
       loading: false,
       error: false,
       searchTerm: '',
-      darkMode: false,
       // Modal states
       showProjectCard: false,
       showPersonelInfo: false,
@@ -509,8 +510,8 @@ export default {
       return (project.personel || []).length;
     },
 
-    // Check if personnel assignment is sufficient
-    getPersonnelStatus(project) {
+    // Check if personnel assignment is sufficient and return class
+    getPersonnelStatusClass(project) {
       const assigned = this.getAssignedPersonnelCount(project);
       const expected = project.expected_personel || 0;
       return assigned >= expected ? 'sufficient' : 'insufficient';
@@ -532,15 +533,15 @@ export default {
       this.showPersonnelBreakdown = true;
     },
 
+    // Close personnel breakdown modal only
+    closePersonnelBreakdown() {
+      this.showPersonnelBreakdown = false;
+    },
+
     // Open vehicles breakdown modal
     openVehiclesBreakdown(project) {
       this.selectedProject = project;
       this.showVehiclesBreakdown = true;
-    },
-
-    // Toggle dark mode
-    toggleDarkMode() {
-      this.darkMode = !this.darkMode;
     },
 
     // Fetch complete personnel data with medical, xray, and education records
@@ -558,7 +559,25 @@ export default {
       }
     },
 
-    // Open PersonelInfo with complete data
+    // Open PersonelInfo from breakdown
+    async openPersonelInfoFromBreakdown(person) {
+      try {
+        this.loadingPersonnel = true;
+        const completePersonnelData = await this.fetchCompletePersonnelData(person.personel_id);
+        
+        if (completePersonnelData) {
+          this.selectedPersonnel = completePersonnelData;
+          this.showPersonnelBreakdown = false; // Close breakdown modal
+          this.showPersonelInfo = true; // Open personnel info modal
+        }
+      } catch (error) {
+        console.error("Error opening personnel info", error);
+      } finally {
+        this.loadingPersonnel = false;
+      }
+    },
+
+    // Open PersonelInfo directly
     async openPersonelInfo(person) {
       try {
         this.loadingPersonnel = true;
@@ -650,7 +669,7 @@ export default {
       }
     },
 
-    // Close PersonelInfo modal
+    // Close PersonelInfo modal only
     closePersonelInfo() {
       this.showPersonelInfo = false;
       this.selectedPersonnel = null;
@@ -813,49 +832,24 @@ export default {
 </script>
 
 <style scoped>
-/* Dark mode variables */
-:root {
-  --bg-primary: #ffffff;
-  --bg-secondary: #f8f9fa;
-  --text-primary: #2d3748;
-  --text-secondary: #4a5568;
-  --border-color: #e2e8f0;
-  --header-bg: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  --table-header-bg: #4a3b8a;
-  --shadow: rgba(0, 0, 0, 0.1);
-}
-
-.dark-mode {
-  --bg-primary: #1a202c;
-  --bg-secondary: #2d3748;
-  --text-primary: #f7fafc;
-  --text-secondary: #e2e8f0;
-  --border-color: #4a5568;
-  --header-bg: linear-gradient(135deg, #2d3748 0%, #1a202c 100%);
-  --table-header-bg: #2d3748;
-  --shadow: rgba(0, 0, 0, 0.3);
-}
-
 .project-dashboard {
   max-width: 1600px;
   margin: 0 auto;
   padding: 20px;
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  background-color: var(--bg-primary);
-  color: var(--text-primary);
-  min-height: 100vh;
 }
 
 .dashboard-header {
-  margin-bottom: 20px;
-  padding: 20px;
-  background: var(--header-bg);
+  text-align: center;
+  margin-bottom: 30px;
+  padding: 30px 20px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
   border-radius: 12px;
-  box-shadow: 0 8px 25px var(--shadow);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
 }
 
-.header-content {
+/* .header-content {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -865,23 +859,7 @@ h1 {
   font-size: 2rem;
   margin-bottom: 0;
   font-weight: 400;
-}
-
-.dark-mode-toggle {
-  background: rgba(255, 255, 255, 0.2);
-  color: white;
-  border: none;
-  padding: 8px 16px;
-  border-radius: 20px;
-  cursor: pointer;
-  font-size: 0.9rem;
-  transition: all 0.3s ease;
-}
-
-.dark-mode-toggle:hover {
-  background: rgba(255, 255, 255, 0.3);
-  transform: translateY(-1px);
-}
+} */
 
 .controls {
   display: flex;
@@ -889,11 +867,11 @@ h1 {
   margin-bottom: 25px;
   flex-wrap: wrap;
   gap: 15px;
-  background: var(--bg-secondary);
+  background: white;
   padding: 20px;
   border-radius: 10px;
-  box-shadow: 0 2px 10px var(--shadow);
-  border: 1px solid var(--border-color);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+  border: 1px solid #e2e8f0;
 }
 
 .search-box {
@@ -904,17 +882,17 @@ h1 {
 .search-box input {
   width: 100%;
   padding: 14px 18px;
-  border: 2px solid var(--border-color);
+  border: 2px solid #e1e5e9;
   border-radius: 8px;
   font-size: 1rem;
   transition: all 0.3s ease;
-  background: var(--bg-primary);
-  color: var(--text-primary);
+  background: #f8f9fa;
 }
 
 .search-box input:focus {
   outline: none;
   border-color: #667eea;
+  background: white;
   box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
 }
 
@@ -945,90 +923,116 @@ h1 {
 }
 
 .table-container {
-  background-color: var(--bg-primary);
+  background-color: white;
   border-radius: 12px;
-  box-shadow: 0 4px 20px var(--shadow);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
   overflow: hidden;
   margin-bottom: 30px;
-  border: 1px solid var(--border-color);
+  border: 1px solid #e2e8f0;
+  position: relative;
 }
 
+/* FIXED: Proper table grid styling with sticky header */
 .bordered-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.8rem;
-  border: 1px solid var(--border-color);
+  border: 1px solid #d1d5db;
+}
+
+.bordered-table thead {
+  position: sticky;
+  top: 0;
+  z-index: 10;
 }
 
 .bordered-table th {
-  background: var(--table-header-bg);
+  background: #4a3b8a;
   padding: 8px 6px;
   text-align: left;
   font-weight: 600;
   color: white;
-  border-bottom: 2px solid var(--border-color);
-  border-right: 1px solid var(--border-color);
+  border-bottom: 2px solid #d1d5db;
+  border-right: 1px solid #5a4a9a;
   position: sticky;
   top: 0;
   white-space: nowrap;
+  z-index: 11;
 }
 
 .bordered-table th:last-child {
-  border-right: 1px solid var(--border-color);
+  border-right: 1px solid #5a4a9a;
 }
 
 .bordered-table td {
   padding: 6px 4px;
-  border-bottom: 1px solid var(--border-color);
-  border-right: 1px solid var(--border-color);
+  border-bottom: 1px solid #e5e7eb;
+  border-right: 1px solid #e5e7eb;
   vertical-align: top;
-  height: 35px;
+  height: 32px; /* Even shorter rows */
 }
 
 .bordered-table td:last-child {
-  border-right: 1px solid var(--border-color);
+  border-right: 1px solid #e5e7eb;
 }
 
 .bordered-table tr:last-child td {
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid #e5e7eb;
 }
 
 .bordered-table tr:hover {
-  background-color: var(--bg-secondary);
+  background-color: #f8fafc;
 }
 
 .cell-bordered {
-  border-right: 1px solid var(--border-color) !important;
+  border-right: 1px solid #e5e7eb !important;
 }
 
 .cell-bordered:last-child {
-  border-right: 1px solid var(--border-color) !important;
+  border-right: 1px solid #e5e7eb !important;
 }
 
-/* Narrower column widths */
-.col-code { width: 60px; }
-.col-name { width: 100px; }
-.col-location { width: 70px; }
-.col-duration { width: 60px; }
-.col-expected { width: 60px; }
-.col-assigned { width: 60px; }
-.col-personnel-breakdown { width: 80px; }
-.col-vehicles-breakdown { width: 80px; }
-.col-crane { width: 50px; }
-.col-map { width: 40px; }
-.col-start { width: 80px; }
-.col-end { width: 80px; }
-.col-actions { width: 180px; min-width: 180px; }
+/* Assigned column status colors */
+.col-assigned.sufficient {
+  background-color: #f0fff4 !important; /* Soft green */
+}
+
+.col-assigned.insufficient {
+  background-color: #fff5f5 !important; /* Soft red */
+}
+
+.bordered-table tr:hover .col-assigned.sufficient {
+  background-color: #e6ffed !important;
+}
+
+.bordered-table tr:hover .col-assigned.insufficient {
+  background-color: #ffe6e6 !important;
+}
+
+/* Even narrower column widths */
+.col-code { width: 55px; }
+.col-name { width: 90px; }
+.col-location { width: 65px; }
+.col-duration { width: 55px; }
+.col-expected { width: 55px; }
+.col-assigned { width: 55px; }
+.col-personnel-breakdown { width: 70px; } /* Shorter */
+.col-vehicles-breakdown { width: 70px; } /* Shorter */
+.col-crane { width: 45px; }
+.col-map { width: 35px; }
+.col-start { width: 75px; }
+.col-end { width: 75px; }
+.col-actions { width: 170px; min-width: 170px; }
 
 .project-code {
   font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
   font-weight: 600;
-  color: var(--text-primary);
-  background: var(--bg-secondary);
-  padding: 3px 5px;
+  color: #2d3748;
+  background: #f7fafc;
+  padding: 2px 4px;
   border-radius: 4px;
-  border: 1px solid var(--border-color);
-  font-size: 0.75rem;
+  border: 1px solid #e2e8f0;
+  font-size: 0.7rem;
   display: inline-block;
 }
 
@@ -1038,17 +1042,17 @@ h1 {
 }
 
 .clickable:hover {
-  background: var(--border-color);
+  background: #e2e8f0;
   transform: translateY(-1px);
 }
 
 .location-badge {
-  background: var(--bg-secondary);
-  padding: 3px 6px;
-  border-radius: 12px;
-  font-size: 0.7rem;
+  background: #edf2f7;
+  padding: 2px 5px;
+  border-radius: 10px;
+  font-size: 0.65rem;
   font-weight: 500;
-  color: var(--text-secondary);
+  color: #4a5568;
   display: inline-block;
 }
 
@@ -1061,13 +1065,13 @@ h1 {
 }
 
 .duration-value, .count {
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   font-weight: 700;
 }
 
 .duration-unit, .label {
-  font-size: 0.65rem;
-  color: var(--text-secondary);
+  font-size: 0.6rem;
+  color: #718096;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -1080,45 +1084,54 @@ h1 {
   color: #c53030;
 }
 
-/* Breakdown cells */
+/* FIXED: Even more compact breakdown cells */
 .breakdown-cell {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding: 2px;
+  gap: 1px;
+  padding: 1px;
+}
+
+.breakdown-row {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
 }
 
 .breakdown-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 1px 3px;
-  border-radius: 3px;
-  background: var(--bg-secondary);
+  padding: 0px 2px;
+  border-radius: 2px;
+  background: #f7fafc;
+  font-size: 0.6rem;
+  min-height: 14px;
 }
 
 .breakdown-count {
-  font-size: 0.75rem;
+  font-size: 0.65rem;
   font-weight: 700;
-  color: var(--text-primary);
+  color: #2d3748;
 }
 
 .breakdown-label {
-  font-size: 0.6rem;
-  color: var(--text-secondary);
+  font-size: 0.55rem;
+  color: #718096;
   text-transform: uppercase;
 }
 
-/* Crane styling */
+/* FIXED: Crane text to fit in column */
 .crane-text {
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   font-weight: 700;
   text-transform: uppercase;
-  padding: 3px 6px;
-  border-radius: 4px;
+  padding: 2px 4px;
+  border-radius: 3px;
   display: inline-block;
   text-align: center;
   width: 100%;
+  box-sizing: border-box;
 }
 
 .crane-text.has-crane {
@@ -1131,12 +1144,11 @@ h1 {
   color: #c53030;
 }
 
-/* Map link */
 .map-link-simple {
   color: #667eea;
   text-decoration: none;
   font-weight: 500;
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   transition: color 0.2s ease;
   text-align: center;
   display: block;
@@ -1148,7 +1160,7 @@ h1 {
 }
 
 .map-link-simple.disabled {
-  color: var(--text-secondary);
+  color: #a0aec0;
   cursor: not-allowed;
   text-decoration: none;
 }
@@ -1159,33 +1171,33 @@ h1 {
 
 .date {
   font-weight: 500;
-  color: var(--text-primary);
-  background: var(--bg-secondary);
-  padding: 3px 5px;
-  border-radius: 4px;
-  border: 1px solid var(--border-color);
-  font-size: 0.75rem;
+  color: #2d3748;
+  background: #f7fafc;
+  padding: 2px 4px;
+  border-radius: 3px;
+  border: 1px solid #e2e8f0;
+  font-size: 0.7rem;
   display: inline-block;
 }
 
 .action-buttons {
   display: flex;
-  gap: 4px;
+  gap: 3px;
   justify-content: center;
 }
 
 .btn {
-  padding: 4px 8px;
+  padding: 3px 6px;
   border: none;
-  border-radius: 4px;
-  font-size: 0.7rem;
+  border-radius: 3px;
+  font-size: 0.65rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
   text-align: center;
   white-space: nowrap;
   flex: 1;
-  min-width: 45px;
+  min-width: 40px;
 }
 
 .btn-personnel {
@@ -1218,25 +1230,85 @@ h1 {
   transform: translateY(-1px);
 }
 
-/* Breakdown modals */
-.breakdown-modal {
-  max-width: 400px;
-  max-height: 60vh;
-  padding: 0;
+/* FIXED: Modal positioning - all modals should be fixed overlay */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.496); /* slightly darker for focus */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+backdrop-filter: blur(5px);
 }
 
-.breakdown-header {
+
+.modal-content {
+  background: white;
+  position: relative;
+  padding: 30px;
+  border-radius: 12px;
+  max-width: 500px;
+  width: 90%;
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.588);
+}
+
+.modal-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding: 20px;
-  border-bottom: 1px solid var(--border-color);
-  background: var(--bg-secondary);
+  border-bottom: 1px solid #e2e8f0;
+  background: #f8f9fa;
 }
 
-.breakdown-header h3 {
+.modal-header h3 {
   margin: 0;
-  font-size: 1.2rem;
+  font-size: 1.3rem;
+  color: #2d3748;
+}
+
+.modal-close-btn {
+  position: absolute;
+  top: 15px;
+  right: 20px;
+  background: none;
+  border: none;
+  font-size: 35px;
+  cursor: pointer;
+  color: #5f0101;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+  z-index: 1000;
+}
+
+.modal-close-btn:hover {
+  background-color: #e5e7eb;
+  color: #374151;
+}
+
+.create-modal {
+  max-width: 600px;
+}
+
+.create-form {
+  padding: 20px;
+}
+
+/* Breakdown modals */
+.breakdown-modal {
+  max-width: 350px;
+  max-height: 60vh;
 }
 
 .breakdown-content {
@@ -1246,16 +1318,16 @@ h1 {
 }
 
 .personnel-item, .vehicle-item {
-  padding: 10px;
-  border: 1px solid var(--border-color);
+  padding: 8px;
+  border: 1px solid #e2e8f0;
   border-radius: 6px;
-  margin-bottom: 8px;
-  background: var(--bg-secondary);
+  margin-bottom: 6px;
+  background: #f8f9fa;
   transition: all 0.2s ease;
 }
 
 .personnel-item:hover, .vehicle-item:hover {
-  background: var(--border-color);
+  background: #e2e8f0;
   transform: translateY(-1px);
 }
 
@@ -1267,39 +1339,29 @@ h1 {
 
 .person-name, .vehicle-name {
   font-weight: 600;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
 }
 
 .person-role, .vehicle-type {
-  font-size: 0.8rem;
-  color: var(--text-secondary);
+  font-size: 0.75rem;
+  color: #718096;
 }
 
 .no-items {
   text-align: center;
-  color: var(--text-secondary);
+  color: #718096;
   font-style: italic;
   padding: 20px;
 }
 
-/* Rest of the existing styles remain similar but with dark mode variables */
-.modal-overlay {
-  background: rgba(0, 0, 0, 0.6);
+.large-modal {
+  max-width: 50%;
+  width: 50%;
+  max-height: 90vh;
 }
 
-.modal-content {
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  border: 1px solid var(--border-color);
-}
+/* Rest of existing styles... */
 
-.loading, .error, .empty-state {
-  background: var(--bg-secondary);
-  color: var(--text-primary);
-  border: 1px solid var(--border-color);
-}
-
-/* Responsive design */
 @media (max-width: 1200px) {
   .table-container {
     overflow-x: auto;
@@ -1320,7 +1382,7 @@ h1 {
   }
   
   .dashboard-header {
-    padding: 15px;
+    padding: 20px 15px;
   }
   
   h1 {
