@@ -1,6 +1,6 @@
 <template>
   <div class="project-card">
-    <button class="close-btn" @click="closeForm">×</button>
+    <!-- <button class="close-btn" @click="closeForm">×</button> -->
     <h3>Edit Project: {{ form?.project_name }}</h3>
 
     <form v-if="form" @submit.prevent="updateProject" class="project-form">

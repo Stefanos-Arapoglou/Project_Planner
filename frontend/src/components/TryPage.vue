@@ -1,12 +1,7 @@
 <template>
-  <div class="project-dashboard" :class="{ 'dark-mode': darkMode }">
+  <div class="project-dashboard">
     <header class="dashboard-header">
-      <div class="header-content">
-        <h1>Project Management Dashboard</h1>
-        <button class="dark-mode-toggle" @click="toggleDarkMode">
-          {{ darkMode ? '☀️ Light' : '🌙 Dark' }}
-        </button>
-      </div>
+      <h1>Project Management Dashboard</h1>
     </header>
 
     <div class="controls">
@@ -18,6 +13,12 @@
         >
       </div>
       <div class="filter-controls">
+        <select v-model="selectedLocation">
+          <option value="">All Locations</option>
+          <option v-for="location in locations" :key="location" :value="location">
+            {{ location }}
+          </option>
+        </select>
         <button class="btn btn-create" @click="openCreateForm">
           + Create New Project
         </button>
@@ -28,18 +29,17 @@
       <table v-if="filteredProjects.length > 0" class="bordered-table excel-style-table">
         <thead>
           <tr>
-            <th class="col-code">Code</th>
+            <th class="col-code">Project Code</th>
             <th class="col-name">Project Name</th>
             <th class="col-location">Location</th>
             <th class="col-duration">Duration</th>
-            <th class="col-expected">Expected</th>
-            <th class="col-assigned">Assigned</th>
-            <th class="col-personnel-breakdown">Personnel</th>
-            <th class="col-vehicles-breakdown">Vehicles</th>
+            <th class="col-personnel">Expected</th>
             <th class="col-crane">Crane</th>
-            <th class="col-map">Map</th>
-            <th class="col-start">Start</th>
-            <th class="col-end">End</th>
+            <th class="col-map">Coordinates</th>
+            <th class="col-start">Start Date</th>
+            <th class="col-end">End Date</th>
+            <th class="col-personnel-list">Personnel</th>
+            <th class="col-vehicles">Vehicles</th>
             <th class="col-actions">Actions</th>
           </tr>
         </thead>
@@ -66,77 +66,27 @@
                 <span class="duration-unit">days</span>
               </div>
             </td>
-            <td class="col-expected cell-bordered">
+            <td class="col-personnel cell-bordered">
               <div class="personnel-count">
-                <span class="count">{{ project.expected_personel || 0 }}</span>
+                <span class="count">{{ project.expected_personel }}</span>
                 <span class="label">people</span>
               </div>
             </td>
-            <td class="col-assigned cell-bordered">
-              <div class="personnel-count">
-                <span 
-                  :class="[
-                    'count', 
-                    getPersonnelStatus(project) === 'sufficient' ? 'sufficient' : 'insufficient'
-                  ]"
-                >
-                  {{ getAssignedPersonnelCount(project) }}
-                </span>
-                <span class="label">assigned</span>
-              </div>
-            </td>
-            <td class="col-personnel-breakdown cell-bordered">
-              <div class="breakdown-cell clickable" @click="openPersonnelBreakdown(project)">
-                <div class="breakdown-row">
-                  <div class="breakdown-item">
-                    <span class="breakdown-count">{{ getRoleCount(project, 'Engineer') }}</span>
-                    <span class="breakdown-label">Eng</span>
-                  </div>
-                  <div class="breakdown-item">
-                    <span class="breakdown-count">{{ getRoleCount(project, 'Worker') }}</span>
-                    <span class="breakdown-label">Wkr</span>
-                  </div>
-                  <div class="breakdown-item">
-                    <span class="breakdown-count">{{ getRoleCount(project, 'Driver') }}</span>
-                    <span class="breakdown-label">Drv</span>
-                  </div>
-                </div>
-              </div>
-            </td>
-            <td class="col-vehicles-breakdown cell-bordered">
-              <div class="breakdown-cell clickable" @click="openVehiclesBreakdown(project)">
-                <div class="breakdown-row">
-                  <div class="breakdown-item">
-                    <span class="breakdown-count">{{ getVehicleTypeCount(project, 'Truck') }}</span>
-                    <span class="breakdown-label">Trk</span>
-                  </div>
-                  <div class="breakdown-item">
-                    <span class="breakdown-count">{{ getVehicleTypeCount(project, 'Car') }}</span>
-                    <span class="breakdown-label">Car</span>
-                  </div>
-                  <div class="breakdown-item">
-                    <span class="breakdown-count">{{ getVehicleTypeCount(project, 'Other') }}</span>
-                    <span class="breakdown-label">Oth</span>
-                  </div>
-                </div>
-              </div>
-            </td>
             <td class="col-crane cell-bordered">
-              <span :class="['crane-text', project.crane === 'Yes' ? 'has-crane' : 'no-crane']">
-                {{ project.crane === 'Yes' ? 'YES' : 'NO' }}
+              <span :class="['crane-indicator', project.crane === 'Yes' ? 'has-crane' : 'no-crane']">
+                {{ project.crane === 'Yes' ? '✓' : '✗' }}
               </span>
             </td>
             <td class="col-map cell-bordered">
               <a 
-                v-if="project.xy_map"
                 :href="getMapsLink(project.xy_map)" 
                 target="_blank" 
-                class="map-link-simple"
+                class="map-link"
                 @click.stop
               >
-                Map
+                <span class="map-icon">🗺️</span>
+                View Map
               </a>
-              <span v-else class="map-link-simple disabled">Map</span>
             </td>
             <td class="col-start cell-bordered">
               <div class="date-cell">
@@ -148,6 +98,38 @@
                 <span class="date">{{ calculateEndDate(project) }}</span>
               </div>
             </td>
+            <td class="col-personnel-list cell-bordered">
+              <div class="personel-list">
+                <div 
+                  v-for="person in (project.personel || [])" 
+                  :key="person.personel_id"
+                  class="personel-item"
+                  @click.stop="openPersonelInfo(person)"
+                >
+                  <span class="person-name">{{ person.personel_name }} {{ person.personel_surname }}</span>
+                  <span class="person-role">{{ person.role }}</span>
+                </div>
+                <div v-if="!project.personel || project.personel.length === 0" class="personel-item empty">
+                  No personnel
+                </div>
+              </div>
+            </td>
+            <td class="col-vehicles cell-bordered">
+              <div class="vehicles-list">
+                <div 
+                  v-for="vehicle in (project.vehicles || [])" 
+                  :key="vehicle.vehicle_id"
+                  class="vehicle-item"
+                  @click.stop="openVehicleCard(vehicle)"
+                >
+                  <span class="vehicle-name">{{ vehicle.vehicle }}</span>
+                  <span class="vehicle-type">{{ vehicle.type }}</span>
+                </div>
+                <div v-if="!project.vehicles || project.vehicles.length === 0" class="vehicle-item empty">
+                  No vehicles
+                </div>
+              </div>
+            </td>
             <td class="col-actions cell-bordered">
               <div class="action-buttons">
                 <button class="btn btn-personnel" @click.stop="openPersonnelForm(project)">
@@ -155,9 +137,6 @@
                 </button>
                 <button class="btn btn-vehicles" @click.stop="openVehiclesForm(project)">
                   Vehicles
-                </button>
-                <button class="btn btn-remove" @click.stop="removeProject(project)">
-                  Remove
                 </button>
               </div>
             </td>
@@ -172,13 +151,10 @@
       </div>
     </div>
 
-    <!-- CREATE PROJECT MODAL - FIXED POSITION -->
+    <!-- Create Project Modal -->
     <div v-if="showCreateForm" class="modal-overlay">
       <div class="modal-content create-modal" @click.stop>
-        <div class="modal-header">
-          <h3>Create New Project</h3>
-          <button class="modal-close-btn" @click="closeModals">×</button>
-        </div>
+        <h3>Create New Project</h3>
         <form @submit.prevent="createProject" class="create-form">
           <div class="form-row">
             <div class="form-group">
@@ -280,100 +256,37 @@
     <!-- Project Card Modal -->
     <div v-if="showProjectCard && selectedProject" class="modal-overlay" @click="closeModals">
       <div class="modal-content" @click.stop>
-        <div class="modal-header">
-          <h3>Project Details</h3>
-          <button class="modal-close-btn" @click="closeModals">×</button>
-        </div>
+        <button class="modal-close-btn" @click="closeModals">×</button>
         <ProjectCard :project="selectedProject" @updated="getProjects" @close="closeModals" />
       </div>
     </div>
 
-    <!-- Personel Info Modal -->
-    <div v-if="showPersonelInfo" class="modal-overlay personel-info-overlay">
-      <div class="modal-content personel-info-modal" @click.stop>
-        <div class="modal-header">
-          <h3>Personnel Details</h3>
-          <button class="modal-close-btn" @click="closeModals">×</button>
-        </div>
-        <div v-if="loadingPersonnel" class="personel-loading">
-          <div class="spinner"></div>
-          Loading personnel data...
-        </div>
-        <PersonelInfo 
-          v-else-if="selectedPersonnel"
-          :personnel="selectedPersonnel"
-          @close="closePersonelInfo"
-          @personel-updated="handlePersonelUpdated"
-          @medical-created="handleMedicalCreated"
-          @xray-created="handleXrayCreated"
-          @education-created="handleEducationCreated"
-          @medical-removed="handleMedicalRemoved"
-          @xray-removed="handleXrayRemoved"
-          @education-removed="handleEducationRemoved"
-          @open-project-card="openProjectCardFromPersonel"
-        />
-      </div>
+<!-- Personel Info Modal -->
+<div v-if="showPersonelInfo" class="modal-overlay personel-info-overlay">
+  <div class="modal-content personel-info-modal" @click.stop>
+    <div v-if="loadingPersonnel" class="personel-loading">
+      <div class="spinner"></div>
+      Loading personnel data...
     </div>
-
-    <!-- Personnel Breakdown Modal -->
-    <div v-if="showPersonnelBreakdown && selectedProject" class="modal-overlay" @click="closeModals">
-      <div class="modal-content breakdown-modal" @click.stop>
-        <div class="modal-header">
-          <h3>Personnel - {{ selectedProject.project_name }}</h3>
-          <button class="modal-close-btn" @click="closeModals">×</button>
-        </div>
-        <div class="breakdown-content">
-          <div 
-            v-for="person in (selectedProject.personel || [])" 
-            :key="person.personel_id"
-            class="personnel-item clickable"
-            @click="openPersonelInfo(person)"
-          >
-            <div class="personnel-info">
-              <span class="person-name">{{ person.personel_name }} {{ person.personel_surname }}</span>
-              <span class="person-role">{{ person.role }}</span>
-            </div>
-          </div>
-          <div v-if="!selectedProject.personel || selectedProject.personel.length === 0" class="no-items">
-            No personnel assigned
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Vehicles Breakdown Modal -->
-    <div v-if="showVehiclesBreakdown && selectedProject" class="modal-overlay" @click="closeModals">
-      <div class="modal-content breakdown-modal" @click.stop>
-        <div class="modal-header">
-          <h3>Vehicles - {{ selectedProject.project_name }}</h3>
-          <button class="modal-close-btn" @click="closeModals">×</button>
-        </div>
-        <div class="breakdown-content">
-          <div 
-            v-for="vehicle in (selectedProject.vehicles || [])" 
-            :key="vehicle.vehicle_id"
-            class="vehicle-item clickable"
-            @click="openVehicleCard(vehicle)"
-          >
-            <div class="vehicle-info">
-              <span class="vehicle-name">{{ vehicle.vehicle }}</span>
-              <span class="vehicle-type">{{ vehicle.type }}</span>
-            </div>
-          </div>
-          <div v-if="!selectedProject.vehicles || selectedProject.vehicles.length === 0" class="no-items">
-            No vehicles assigned
-          </div>
-        </div>
-      </div>
-    </div>
+    <PersonelInfo 
+      v-else-if="selectedPersonnel"
+      :personnel="selectedPersonnel"
+      @close="closePersonelInfo"
+      @personel-updated="handlePersonelUpdated"
+      @medical-created="handleMedicalCreated"
+      @xray-created="handleXrayCreated"
+      @education-created="handleEducationCreated"
+      @medical-removed="handleMedicalRemoved"
+      @xray-removed="handleXrayRemoved"
+      @education-removed="handleEducationRemoved"
+      @open-project-card="openProjectCardFromPersonel"
+    />
+  </div>
+</div>
 
     <!-- Vehicle Card Modal -->
     <div v-if="showVehicleCard && selectedVehicle" class="modal-overlay" @click="closeModals">
       <div class="modal-content" @click.stop>
-        <div class="modal-header">
-          <h3>Vehicle Details</h3>
-          <button class="modal-close-btn" @click="closeModals">×</button>
-        </div>
         <VehiclesCard 
           :vehicle="selectedVehicle"
           :projectId="selectedProject?.project_id"
@@ -386,10 +299,6 @@
     <!-- Add Personnel Modal -->
     <div v-if="showPersonnelForm" class="modal-overlay" @click="closeModals">
       <div class="modal-content large-modal" @click.stop>
-        <div class="modal-header">
-          <h3>Manage Personnel - {{ selectedProject?.project_name }}</h3>
-          <button class="modal-close-btn" @click="closeModals">×</button>
-        </div>
         <AddPersonel 
           :project="selectedProject" 
           @close="closeModals"
@@ -401,15 +310,19 @@
     <!-- Add Vehicles Modal -->
     <div v-if="showVehiclesForm" class="modal-overlay" @click="closeModals">
       <div class="modal-content" @click.stop>
-        <div class="modal-header">
-          <h3>Manage Vehicles - {{ selectedProject?.project_name }}</h3>
-          <button class="modal-close-btn" @click="closeModals">×</button>
-        </div>
         <AddVehicles 
           :project="selectedProject" 
           @close="closeModals"
           @vehiclesUpdated="getProjects"  
         />
+      </div>
+    </div>
+
+    <div v-if="showUpdateForm" class="modal-overlay">
+      <div class="modal-content" @click.stop>
+        <h3>Update Project - {{ selectedProject?.project_name }}</h3>
+        <p>Project update form will go here...</p>
+        <button @click="closeModals" class="btn btn-close">Close</button>
       </div>
     </div>
 
@@ -449,7 +362,8 @@ export default {
       loading: false,
       error: false,
       searchTerm: '',
-      darkMode: false,
+      selectedLocation: '',
+      selectedStatus: '',
       // Modal states
       showProjectCard: false,
       showPersonelInfo: false,
@@ -458,13 +372,11 @@ export default {
       showVehiclesForm: false,
       showUpdateForm: false,
       showCreateForm: false,
-      showPersonnelBreakdown: false,
-      showVehiclesBreakdown: false,
       selectedProject: null,
       selectedPersonnel: null,
       selectedVehicle: null,
       creating: false,
-      loadingPersonnel: false,
+      loadingPersonnel: false, // NEW: Add loading state for personnel data
       // New project data
       newProject: {
         project_code: '',
@@ -480,24 +392,40 @@ export default {
     }
   },
   computed: {
+    locations() {
+      return [...new Set(this.projects.map(p => p.location))];
+    },
     filteredProjects() {
       return this.projects.filter(project => {
+        // Search filter - now includes personnel and vehicles
         const searchLower = this.searchTerm.toLowerCase();
         const matchesSearch = 
           project.project_code?.toLowerCase().includes(searchLower) ||
           project.project_name?.toLowerCase().includes(searchLower) ||
           project.location?.toLowerCase().includes(searchLower) ||
+          // Search in personnel
           (project.personel || []).some(person => 
             person.personel_name?.toLowerCase().includes(searchLower) ||
             person.personel_surname?.toLowerCase().includes(searchLower) ||
             person.role?.toLowerCase().includes(searchLower)
           ) ||
+          // Search in vehicles
           (project.vehicles || []).some(vehicle => 
             vehicle.vehicle?.toLowerCase().includes(searchLower) ||
             vehicle.type?.toLowerCase().includes(searchLower)
           );
         
-        return matchesSearch;
+        // Location filter
+        const matchesLocation = !this.selectedLocation || project.location === this.selectedLocation;
+        
+        // Status filter
+        let matchesStatus = true;
+        if (this.selectedStatus) {
+          const status = this.getProjectStatus(project);
+          matchesStatus = status === this.selectedStatus;
+        }
+        
+        return matchesSearch && matchesLocation && matchesStatus;
       });
     }
   },
@@ -516,60 +444,7 @@ export default {
       }
     },
 
-    // Remove project method
-    async removeProject(project) {
-      if (confirm(`Are you sure you want to remove project "${project.project_name}"? This action cannot be undone.`)) {
-        try {
-          await axios.post(`http://localhost:8000/projects/${project.project_id}/remove`);
-          this.getProjects(); // Refresh the project list
-          alert('Project removed successfully!');
-        } catch (error) {
-          console.error("Failed to remove project", error);
-          alert('Failed to remove project. Please try again.');
-        }
-      }
-    },
-
-    // Get assigned personnel count
-    getAssignedPersonnelCount(project) {
-      return (project.personel || []).length;
-    },
-
-    // Check if personnel assignment is sufficient
-    getPersonnelStatus(project) {
-      const assigned = this.getAssignedPersonnelCount(project);
-      const expected = project.expected_personel || 0;
-      return assigned >= expected ? 'sufficient' : 'insufficient';
-    },
-
-    // Get count by role
-    getRoleCount(project, role) {
-      return (project.personel || []).filter(person => person.role === role).length;
-    },
-
-    // Get count by vehicle type
-    getVehicleTypeCount(project, type) {
-      return (project.vehicles || []).filter(vehicle => vehicle.type === type).length;
-    },
-
-    // Open personnel breakdown modal
-    openPersonnelBreakdown(project) {
-      this.selectedProject = project;
-      this.showPersonnelBreakdown = true;
-    },
-
-    // Open vehicles breakdown modal
-    openVehiclesBreakdown(project) {
-      this.selectedProject = project;
-      this.showVehiclesBreakdown = true;
-    },
-
-    // Toggle dark mode
-    toggleDarkMode() {
-      this.darkMode = !this.darkMode;
-    },
-
-    // Fetch complete personnel data with medical, xray, and education records
+    // NEW: Fetch complete personnel data with medical, xray, and education records
     async fetchCompletePersonnelData(personelId) {
       try {
         this.loadingPersonnel = true;
@@ -584,10 +459,13 @@ export default {
       }
     },
 
-    // Open PersonelInfo with complete data
+    // UPDATED: Open PersonelInfo with complete data
     async openPersonelInfo(person) {
       try {
+        // Show loading state
         this.loadingPersonnel = true;
+        
+        // Fetch complete personnel data including medical, xray, education
         const completePersonnelData = await this.fetchCompletePersonnelData(person.personel_id);
         
         if (completePersonnelData) {
@@ -610,71 +488,74 @@ export default {
       this.closeModals();
     },
 
-    // Handle PersonelInfo events with data refresh
-    async handlePersonelUpdated() {
-      if (this.selectedPersonnel) {
-        const freshData = await this.fetchCompletePersonnelData(this.selectedPersonnel.personel_id);
-        if (freshData) {
-          this.selectedPersonnel = freshData;
-        }
-      }
-      this.getProjects();
-    },
+// UPDATED: Handle PersonelInfo events with data refresh
+async handlePersonelUpdated() {
+  // Refresh the complete personnel data
+  if (this.selectedPersonnel) {
+    const freshData = await this.fetchCompletePersonnelData(this.selectedPersonnel.personel_id);
+    if (freshData) {
+      this.selectedPersonnel = freshData;
+    }
+  }
+  // Also refresh projects to show any changes in the table
+  this.getProjects();
+},
 
-    // All record event handlers to refresh data
-    async handleMedicalCreated() {
-      if (this.selectedPersonnel) {
-        const freshData = await this.fetchCompletePersonnelData(this.selectedPersonnel.personel_id);
-        if (freshData) {
-          this.selectedPersonnel = freshData;
-        }
-      }
-    },
+// UPDATED: All record event handlers to refresh data
+async handleMedicalCreated() {
+  // Refresh the personnel data to get updated medical records
+  if (this.selectedPersonnel) {
+    const freshData = await this.fetchCompletePersonnelData(this.selectedPersonnel.personel_id);
+    if (freshData) {
+      this.selectedPersonnel = freshData;
+    }
+  }
+},
 
-    async handleXrayCreated() {
-      if (this.selectedPersonnel) {
-        const freshData = await this.fetchCompletePersonnelData(this.selectedPersonnel.personel_id);
-        if (freshData) {
-          this.selectedPersonnel = freshData;
-        }
-      }
-    },
+async handleXrayCreated() {
+  if (this.selectedPersonnel) {
+    const freshData = await this.fetchCompletePersonnelData(this.selectedPersonnel.personel_id);
+    if (freshData) {
+      this.selectedPersonnel = freshData;
+    }
+  }
+},
 
-    async handleEducationCreated() {
-      if (this.selectedPersonnel) {
-        const freshData = await this.fetchCompletePersonnelData(this.selectedPersonnel.personel_id);
-        if (freshData) {
-          this.selectedPersonnel = freshData;
-        }
-      }
-    },
+async handleEducationCreated() {
+  if (this.selectedPersonnel) {
+    const freshData = await this.fetchCompletePersonnelData(this.selectedPersonnel.personel_id);
+    if (freshData) {
+      this.selectedPersonnel = freshData;
+    }
+  }
+},
 
-    async handleMedicalRemoved() {
-      if (this.selectedPersonnel) {
-        const freshData = await this.fetchCompletePersonnelData(this.selectedPersonnel.personel_id);
-        if (freshData) {
-          this.selectedPersonnel = freshData;
-        }
-      }
-    },
+async handleMedicalRemoved() {
+  if (this.selectedPersonnel) {
+    const freshData = await this.fetchCompletePersonnelData(this.selectedPersonnel.personel_id);
+    if (freshData) {
+      this.selectedPersonnel = freshData;
+    }
+  }
+},
 
-    async handleXrayRemoved() {
-      if (this.selectedPersonnel) {
-        const freshData = await this.fetchCompletePersonnelData(this.selectedPersonnel.personel_id);
-        if (freshData) {
-          this.selectedPersonnel = freshData;
-        }
-      }
-    },
+async handleXrayRemoved() {
+  if (this.selectedPersonnel) {
+    const freshData = await this.fetchCompletePersonnelData(this.selectedPersonnel.personel_id);
+    if (freshData) {
+      this.selectedPersonnel = freshData;
+    }
+  }
+},
 
-    async handleEducationRemoved() {
-      if (this.selectedPersonnel) {
-        const freshData = await this.fetchCompletePersonnelData(this.selectedPersonnel.personel_id);
-        if (freshData) {
-          this.selectedPersonnel = freshData;
-        }
-      }
-    },
+async handleEducationRemoved() {
+  if (this.selectedPersonnel) {
+    const freshData = await this.fetchCompletePersonnelData(this.selectedPersonnel.personel_id);
+    if (freshData) {
+      this.selectedPersonnel = freshData;
+    }
+  }
+},
 
     // Close PersonelInfo modal
     closePersonelInfo() {
@@ -802,8 +683,6 @@ export default {
       this.showPersonnelForm = false;
       this.showVehiclesForm = false;
       this.showCreateForm = false;
-      this.showPersonnelBreakdown = false;
-      this.showVehiclesBreakdown = false;
       this.selectedProject = null;
       this.selectedPersonnel = null;
       this.selectedVehicle = null;
@@ -839,15 +718,75 @@ export default {
 </script>
 
 <style scoped>
-/* Reset to original light mode styling */
+/* Your existing CSS styles remain exactly the same, just add the PersonelInfo modal styles */
+/* Add this to your CSS */
+.personel-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  color: #6c757d;
+}
+
+.personel-loading .spinner {
+  width: 30px;
+  height: 30px;
+  border: 3px solid #f3f3f3;
+  border-top: 3px solid #667eea;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 15px;
+}
+/* Personel Info Modal Styles */
+.personel-info-overlay {
+  z-index: 1001; /* Higher than other modals */
+}
+
+.personel-info-modal {
+  max-width: 500px;
+  width: 95%;
+  max-height: 90vh;
+  overflow: hidden;
+  padding: 0;
+  background: transparent;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+
+.personel-info-modal ::v-deep .personel-info-card {
+  max-width: none;
+  margin: 0;
+  height: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* Ensure modal overlay covers everything */
+.modal-overlay {
+  backdrop-filter: blur(5px);
+}
+
+@media (max-width: 768px) {
+  .personel-info-modal {
+    width: 98%;
+    max-width: 98%;
+    height: 95vh;
+    max-height: 95vh;
+  }
+  
+  .personel-info-modal ::v-deep .personel-info-card {
+    border-radius: 0;
+    height: 100%;
+  }
+}
+
+/* Rest of your existing CSS remains exactly the same */
 .project-dashboard {
   max-width: 1600px;
   margin: 0 auto;
   padding: 20px;
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  background-color: #ffffff;
-  color: #2d3748;
-  min-height: 100vh;
 }
 
 .dashboard-header {
@@ -860,32 +799,17 @@ export default {
   box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
 }
 
-.header-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
 
 h1 {
-  font-size: 2rem;
-  margin-bottom: 0;
-  font-weight: 400;
+  font-size: 2.5rem;
+  margin-bottom: 10px;
+  font-weight: 700;
 }
 
-.dark-mode-toggle {
-  background: rgba(255, 255, 255, 0.2);
-  color: white;
-  border: none;
-  padding: 8px 16px;
-  border-radius: 20px;
-  cursor: pointer;
-  font-size: 0.9rem;
-  transition: all 0.3s ease;
-}
-
-.dark-mode-toggle:hover {
-  background: rgba(255, 255, 255, 0.3);
-  transform: translateY(-1px);
+.subtitle {
+  font-size: 1.2rem;
+  opacity: 0.9;
+  font-weight: 300;
 }
 
 .controls {
@@ -898,7 +822,6 @@ h1 {
   padding: 20px;
   border-radius: 10px;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
-  border: 1px solid #e2e8f0;
 }
 
 .search-box {
@@ -930,6 +853,23 @@ h1 {
   align-items: center;
 }
 
+select {
+  padding: 14px 18px;
+  border: 2px solid #e1e5e9;
+  border-radius: 8px;
+  background-color: white;
+  font-size: 1rem;
+  transition: all 0.3s ease;
+  min-width: 150px;
+}
+
+select:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+/* Create Project Button */
 .btn-create {
   background: #10b981;
   color: white;
@@ -958,37 +898,36 @@ h1 {
   border: 1px solid #e2e8f0;
 }
 
-/* FIXED: Proper table grid styling */
+/* Enhanced Table Borders */
 .bordered-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.8rem;
+  font-size: 0.85rem;
   border: 1px solid #d1d5db;
 }
 
 .bordered-table th {
-  background: #4a3b8a;
-  padding: 8px 6px;
+  background: linear-gradient(135deg, #4a5568 0%, #2d3748 100%);
+  padding: 12px 8px;
   text-align: left;
   font-weight: 600;
   color: white;
   border-bottom: 2px solid #d1d5db;
-  border-right: 1px solid #5a4a9a;
+  border-right: 1px solid #718096;
   position: sticky;
   top: 0;
   white-space: nowrap;
 }
 
 .bordered-table th:last-child {
-  border-right: 1px solid #5a4a9a;
+  border-right: 1px solid #718096;
 }
 
 .bordered-table td {
-  padding: 6px 4px;
+  padding: 10px 8px;
   border-bottom: 1px solid #e5e7eb;
   border-right: 1px solid #e5e7eb;
   vertical-align: top;
-  height: 32px; /* Even shorter rows */
 }
 
 .bordered-table td:last-child {
@@ -1003,6 +942,7 @@ h1 {
   background-color: #f8fafc;
 }
 
+/* Cell borders for better separation */
 .cell-bordered {
   border-right: 1px solid #e5e7eb !important;
 }
@@ -1011,30 +951,31 @@ h1 {
   border-right: 1px solid #e5e7eb !important;
 }
 
-/* Even narrower column widths */
-.col-code { width: 55px; }
-.col-name { width: 90px; }
-.col-location { width: 65px; }
-.col-duration { width: 55px; }
-.col-expected { width: 55px; }
-.col-assigned { width: 55px; }
-.col-personnel-breakdown { width: 70px; } /* Shorter */
-.col-vehicles-breakdown { width: 70px; } /* Shorter */
-.col-crane { width: 45px; }
-.col-map { width: 35px; }
-.col-start { width: 75px; }
-.col-end { width: 75px; }
-.col-actions { width: 170px; min-width: 170px; }
+/* Column Width Classes - Updated */
+.col-code { width: 80px; }
+.col-name { width: 120px; }
+.col-location { width: 80px; }
+.col-duration { width: 70px; }
+.col-personnel { width: 70px; }
+.col-crane { width: 50px; }
+.col-map { width: 90px; }
+.col-start { width: 100px; }
+.col-end { width: 100px; }
+.col-status { width: 80px; }
+.col-personnel-list { width: 180px; min-width: 180px; }
+.col-vehicles { width: 120px; min-width: 120px; }
+.col-actions { width: 180px; min-width: 180px; }
 
+/* Custom Cell Styling */
 .project-code {
   font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
   font-weight: 600;
   color: #2d3748;
   background: #f7fafc;
-  padding: 2px 4px;
+  padding: 4px 6px;
   border-radius: 4px;
   border: 1px solid #e2e8f0;
-  font-size: 0.7rem;
+  font-size: 0.8rem;
   display: inline-block;
 }
 
@@ -1046,13 +987,14 @@ h1 {
 .clickable:hover {
   background: #e2e8f0;
   transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .location-badge {
   background: #edf2f7;
-  padding: 2px 5px;
-  border-radius: 10px;
-  font-size: 0.65rem;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 0.75rem;
   font-weight: 500;
   color: #4a5568;
   display: inline-block;
@@ -1063,108 +1005,64 @@ h1 {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1px;
+  gap: 2px;
 }
 
 .duration-value, .count {
-  font-size: 0.75rem;
+  font-size: 0.9rem;
   font-weight: 700;
+  color: #2d3748;
 }
 
 .duration-unit, .label {
-  font-size: 0.6rem;
+  font-size: 0.7rem;
   color: #718096;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 
-.count.sufficient {
-  color: #276749;
-}
-
-.count.insufficient {
-  color: #c53030;
-}
-
-/* FIXED: Even more compact breakdown cells */
-.breakdown-cell {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  padding: 1px;
-}
-
-.breakdown-row {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-
-.breakdown-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0px 2px;
-  border-radius: 2px;
-  background: #f7fafc;
-  font-size: 0.6rem;
-  min-height: 14px;
-}
-
-.breakdown-count {
-  font-size: 0.65rem;
-  font-weight: 700;
-  color: #2d3748;
-}
-
-.breakdown-label {
-  font-size: 0.55rem;
-  color: #718096;
-  text-transform: uppercase;
-}
-
-/* FIXED: Crane text to fit in column */
-.crane-text {
-  font-size: 0.7rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  padding: 2px 4px;
-  border-radius: 3px;
+.crane-indicator {
   display: inline-block;
-  text-align: center;
-  width: 100%;
-  box-sizing: border-box;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 0.9rem;
+  margin: 0 auto;
 }
 
-.crane-text.has-crane {
+.has-crane {
   background: #c6f6d5;
   color: #276749;
 }
 
-.crane-text.no-crane {
+.no-crane {
   background: #fed7d7;
   color: #c53030;
 }
 
-.map-link-simple {
+.map-link {
   color: #667eea;
   text-decoration: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
   font-weight: 500;
-  font-size: 0.7rem;
+  font-size: 0.8rem;
   transition: color 0.2s ease;
-  text-align: center;
-  display: block;
+  justify-content: center;
 }
 
-.map-link-simple:hover {
+.map-link:hover {
   color: #5a67d8;
   text-decoration: underline;
 }
 
-.map-link-simple.disabled {
-  color: #a0aec0;
-  cursor: not-allowed;
-  text-decoration: none;
+.map-icon {
+  font-size: 0.9rem;
 }
 
 .date-cell {
@@ -1175,31 +1073,123 @@ h1 {
   font-weight: 500;
   color: #2d3748;
   background: #f7fafc;
-  padding: 2px 4px;
-  border-radius: 3px;
-  border: 1px solid #e2e8f0;
-  font-size: 0.7rem;
+  padding: 4px 6px;
+  border-radius: 4px;
   display: inline-block;
+  border: 1px solid #e2e8f0;
+  font-size: 0.8rem;
 }
 
+.status-badge {
+  display: inline-block;
+  padding: 6px 10px;
+  border-radius: 12px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  text-align: center;
+  width: 100%;
+}
+
+.status-active {
+  background-color: #c6f6d5;
+  color: #276749;
+  border: 1px solid #9ae6b4;
+}
+
+.status-upcoming {
+  background-color: #bee3f8;
+  color: #2c5aa0;
+  border: 1px solid #90cdf4;
+}
+
+.status-completed {
+  background-color: #e2e8f0;
+  color: #4a5568;
+  border: 1px solid #cbd5e0;
+}
+
+.personel-list, .vehicles-list {
+  max-height: 120px;
+  overflow-y: auto;
+  padding: 2px;
+}
+
+.personel-item, .vehicle-item {
+  padding: 6px 8px;
+  border-bottom: 1px solid #f1f3f4;
+  border-radius: 4px;
+  margin-bottom: 4px;
+  background: #fafafa;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  border: 1px solid #f1f3f4;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 0.75rem;
+}
+
+.personel-item:hover, .vehicle-item:hover {
+  background: #e3f2fd;
+  border-color: #90caf9;
+  transform: translateY(-1px);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.personel-item:last-child, .vehicle-item:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+}
+
+.personel-item.empty, .vehicle-item.empty {
+  background: #f7fafc;
+  color: #a0aec0;
+  font-style: italic;
+  text-align: center;
+  border: 1px dashed #e2e8f0;
+  cursor: default;
+}
+
+.personel-item.empty:hover, .vehicle-item.empty:hover {
+  background: #f7fafc;
+  transform: none;
+  box-shadow: none;
+}
+
+.person-name, .vehicle-name {
+  font-weight: 600;
+  color: #2d3748;
+  font-size: 0.75rem;
+}
+
+.person-role, .vehicle-type {
+  font-size: 0.7rem;
+  color: #718096;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+/* Action Buttons - Updated to horizontal layout */
 .action-buttons {
   display: flex;
-  gap: 3px;
+  gap: 6px;
   justify-content: center;
 }
 
 .btn {
-  padding: 3px 6px;
+  padding: 6px 10px;
   border: none;
-  border-radius: 3px;
-  font-size: 0.65rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
   text-align: center;
   white-space: nowrap;
   flex: 1;
-  min-width: 40px;
+  min-width: 50px;
 }
 
 .btn-personnel {
@@ -1222,65 +1212,61 @@ h1 {
   transform: translateY(-1px);
 }
 
-.btn-remove {
-  background: #dc2626;
+.btn-update {
+  background: #ff9800;
   color: white;
 }
 
-.btn-remove:hover {
-  background: #b91c1c;
+.btn-update:hover {
+  background: #f57c00;
   transform: translateY(-1px);
 }
 
-/* FIXED: Modal positioning - all modals should be fixed overlay */
+.btn-close {
+  background: #6c757d;
+  color: white;
+  margin-top: 15px;
+}
+
+.btn-close:hover {
+  background: #5a6268;
+}
+
+/* Modal Styles */
 .modal-overlay {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(0, 0, 0, 0.496); /* slightly darker for focus */
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
-  padding: 20px;
 }
 
 .modal-content {
   background: white;
   position: relative;
-  padding: 0;
+  padding: 30px;
   border-radius: 12px;
   max-width: 500px;
   width: 90%;
   max-height: 80vh;
   overflow-y: auto;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
-  border: 1px solid #e2e8f0;
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 20px;
-  border-bottom: 1px solid #e2e8f0;
-  background: #f8f9fa;
-}
-
-.modal-header h3 {
-  margin: 0;
-  font-size: 1.3rem;
-  color: #2d3748;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.588);
 }
 
 .modal-close-btn {
+  position: absolute;
+  top: 15px;
+  right: 20px;
   background: none;
   border: none;
-  font-size: 24px;
+  font-size: 35px;
   cursor: pointer;
-  color: #6b7280;
+  color: #5f0101;
   width: 30px;
   height: 30px;
   border-radius: 50%;
@@ -1288,120 +1274,183 @@ h1 {
   align-items: center;
   justify-content: center;
   transition: all 0.3s ease;
+  z-index: 1000;
 }
 
 .modal-close-btn:hover {
-  background-color: #e5e7eb;
+  background-color: #f3f4f6;
   color: #374151;
 }
 
+.modal-content h3 {
+  margin-bottom: 15px;
+  color: #2d3748;
+}
+
+/* Create Project Modal Styles */
 .create-modal {
   max-width: 600px;
-}
-
-.create-form {
-  padding: 20px;
-}
-
-/* Breakdown modals */
-.breakdown-modal {
-  max-width: 350px;
-  max-height: 60vh;
-}
-
-.breakdown-content {
-  padding: 15px;
-  max-height: 50vh;
+  max-height: 90vh;
   overflow-y: auto;
 }
 
-.personnel-item, .vehicle-item {
-  padding: 8px;
-  border: 1px solid #e2e8f0;
-  border-radius: 6px;
-  margin-bottom: 6px;
-  background: #f8f9fa;
-  transition: all 0.2s ease;
+.create-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
 }
 
-.personnel-item:hover, .vehicle-item:hover {
-  background: #e2e8f0;
+.form-row {
+  display: flex;
+  gap: 15px;
+}
+
+.form-group {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.form-group.full-width {
+  width: 100%;
+}
+
+.form-group label {
+  margin-bottom: 6px;
+  font-weight: 600;
+  color: #374151;
+  font-size: 0.9rem;
+}
+
+.form-group input,
+.form-group select {
+  padding: 12px;
+  border: 2px solid #e5e7eb;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  transition: all 0.3s ease;
+  background: white;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.form-group input:required:invalid {
+  border-color: #ef4444;
+}
+
+.form-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.btn-cancel {
+  background: #6b7280;
+  color: white;
+  padding: 12px 24px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.btn-cancel:hover {
+  background: #4b5563;
+}
+
+.btn-submit {
+  background: #667eea;
+  color: white;
+  padding: 12px 24px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.3s ease;
+}
+
+.btn-submit:hover:not(:disabled) {
+  background: #5a67d8;
   transform: translateY(-1px);
 }
 
-.personnel-info, .vehicle-info {
+.btn-submit:disabled {
+  background: #9ca3af;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.loading {
+  text-align: center;
+  padding: 60px 20px;
+  font-size: 1.2rem;
+  color: #6c757d;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  align-items: center;
+  gap: 15px;
 }
 
-.person-name, .vehicle-name {
-  font-weight: 600;
-  font-size: 0.85rem;
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid #f3f3f3;
+  border-top: 4px solid #667eea;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
 }
 
-.person-role, .vehicle-type {
-  font-size: 0.75rem;
-  color: #718096;
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
 
-.no-items {
+.error {
   text-align: center;
+  padding: 60px 20px;
+  background: #fed7d7;
+  border-radius: 12px;
+  margin: 20px 0;
+  color: #c53030;
+  border: 1px solid #feb2b2;
+}
+
+.error-icon {
+  font-size: 3rem;
+  margin-bottom: 15px;
+}
+
+.error h3 {
+  margin-bottom: 10px;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 80px 20px;
+  color: #a0aec0;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #f7fafc;
+}
+
+.empty-icon {
+  font-size: 4rem;
+  margin-bottom: 20px;
+  opacity: 0.5;
+}
+
+.empty-state h3 {
+  margin-bottom: 10px;
   color: #718096;
-  font-style: italic;
-  padding: 20px;
 }
-
-/* Dark mode styles */
-.dark-mode .project-dashboard {
-  background-color: #1a202c;
-  color: #f7fafc;
-}
-
-.dark-mode .dashboard-header {
-  background: linear-gradient(135deg, #2d3748 0%, #1a202c 100%);
-}
-
-.dark-mode .controls {
-  background: #2d3748;
-  border-color: #4a5568;
-}
-
-.dark-mode .table-container {
-  background: #2d3748;
-  border-color: #4a5568;
-}
-
-.dark-mode .bordered-table {
-  border-color: #4a5568;
-}
-
-.dark-mode .bordered-table th {
-  background: #2d3748;
-  border-color: #4a5568;
-}
-
-.dark-mode .bordered-table td {
-  border-color: #4a5568;
-  background: #2d3748;
-}
-
-.dark-mode .bordered-table tr:hover td {
-  background: #4a5568;
-}
-
-.dark-mode .modal-content {
-  background: #2d3748;
-  border-color: #4a5568;
-  color: #f7fafc;
-}
-
-.dark-mode .modal-header {
-  background: #4a5568;
-  border-color: #718096;
-}
-
-/* Rest of existing styles... */
 
 @media (max-width: 1200px) {
   .table-container {
@@ -1427,18 +1476,49 @@ h1 {
   }
   
   h1 {
-    font-size: 1.6rem;
-  }
-  
-  .header-content {
-    flex-direction: column;
-    gap: 15px;
-    text-align: center;
+    font-size: 2rem;
   }
   
   .action-buttons {
     flex-direction: row;
     flex-wrap: wrap;
   }
+  
+  .btn {
+    flex: 1;
+    min-width: 60px;
+  }
+}
+
+.excel-style-table {
+  border: 1px solid #d0d7e5;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.excel-style-table th,
+.excel-style-table td {
+  border-right: 1px solid #d0d7e5;
+  border-bottom: 1px solid #d0d7e5;
+  border-left: none;
+  border-top: none;
+}
+
+.excel-style-table th:first-child,
+.excel-style-table td:first-child {
+  border-left: 1px solid #d0d7e5;
+}
+
+.excel-style-table tr:first-child th {
+  border-top: 1px solid #d0d7e5;
+}
+
+.excel-style-table tr:hover td {
+  background-color: #f0f7ff;
+}
+.large-modal {
+  max-width: 50%;
+  width: 50%;
+  max-height: 90vh;
 }
 </style>

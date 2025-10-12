@@ -646,7 +646,7 @@ export default {
       
       while (daysAdded < additionalDaysNeeded) {
         currentDate.setDate(currentDate.getDate() + 1);
-        if (!this.isWeekend(currentDate)) {
+        if (currentDate.getDay() !== 0 && currentDate.getDay() !== 6) {
           daysAdded++;
         }
       }
@@ -658,7 +658,7 @@ export default {
       if (!this.personelProjects || this.personelProjects.length === 0) return [];
       
       return this.personelProjects.filter(project => {
-        if (!project.date_start) return false;
+        // if (!project.date_start) return false;
         
         const startDate = new Date(project.date_start);
         const endDate = this.calculateProjectEndDate(project);

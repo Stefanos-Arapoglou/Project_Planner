@@ -6,7 +6,7 @@
   </div>
 
   <!-- Navbar only visible when authenticated -->
-  <nav v-if="isAuthenticated" class="navbar">
+  <nav v-if="isAuthenticated && $route.path !== '/login'" class="navbar">
     <!-- Hamburger (visible on mobile) -->
     <button class="navbar-toggle" @click="toggleMenu">
       <span></span>
@@ -37,7 +37,8 @@ export default {
   data() {
     return {
       isMenuOpen: false,
-      isAuthenticated: false
+      // Initialize directly from localStorage
+      isAuthenticated: localStorage.getItem('isAuthenticated') === 'true'
     };
   },
   methods: {
@@ -54,7 +55,6 @@ export default {
     }
   },
   mounted() {
-    this.checkAuth();
     window.addEventListener('storage', this.checkAuth);
   },
   beforeUnmount() {
@@ -63,7 +63,7 @@ export default {
   watch: {
     '$route'() {
       this.checkAuth();
-      this.isMenuOpen = false; // Close mobile menu on route change
+      this.isMenuOpen = false;
     }
   }
 }
