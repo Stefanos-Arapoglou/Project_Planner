@@ -501,7 +501,8 @@ export default {
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
   border: 1px solid #e1e5e9;
   overflow: hidden;
-  max-width: 480px;
+  max-width: 480px !important; /* ← Add !important here */
+  width: 480px !important; /* ← Add explicit width with !important */
   margin: 0 auto;
   font-size: 0.9rem;
   position: relative;
