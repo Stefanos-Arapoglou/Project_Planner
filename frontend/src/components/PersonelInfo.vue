@@ -599,14 +599,20 @@ export default {
       });
     },
     
-    getDaysRemaining(dateString) {
-      if (!dateString) return 'N/A';
-      const today = new Date();
-      const expiryDate = new Date(dateString);
-      const diffTime = expiryDate - today;
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      return diffDays > 0 ? `${diffDays}d` : 'Expired';
-    },
+getDaysRemaining(dateString) {
+  if (!dateString) return 'N/A';
+  const today = new Date();
+  const expiryDate = new Date(dateString);
+
+  // normalize both to midnight
+  today.setHours(0,0,0,0);
+  expiryDate.setHours(0,0,0,0);
+
+  const diffTime = expiryDate - today;
+  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+  return diffDays > 0 ? `${diffDays}d` : 'Expired';
+},
     
     getDateStatus(dateString) {
       if (!dateString) return 'no-date';
@@ -654,18 +660,18 @@ export default {
       return new Date(currentDate);
     },
     
-    getAssignmentsForDate(date) {
-      if (!this.personelProjects || this.personelProjects.length === 0) return [];
-      
-      return this.personelProjects.filter(project => {
-        // if (!project.date_start) return false;
-        
-        const startDate = new Date(project.date_start);
-        const endDate = this.calculateProjectEndDate(project);
-        
-        return date >= startDate && date <= endDate && !this.isWeekend(date);
-      });
-    },
+getAssignmentsForDate(date) {
+  if (!this.personelProjects?.length) return [];
+
+  const normalize = d => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const current = normalize(date);
+
+  return this.personelProjects.filter(project => {
+    const startDate = normalize(new Date(project.date_start));
+    const endDate = normalize(this.calculateProjectEndDate(project));
+    return current >= startDate && current <= endDate && !this.isWeekend(current);
+  });
+},
     
     getDayTooltip(date, assignments) {
       const dateStr = this.formatDate(date);
@@ -1422,11 +1428,45 @@ export default {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  /* No scrolling on modal itself */
-  padding: 0 !important;
-  /* Force remove any padding */
-  margin: 0 !important;
-  /* Force remove any margin */
+  padding: 24px; /* ← ADD PROPER PADDING */
+  margin: 0;
+}
+
+/* Modal Close Button - ADD THIS */
+.personel-info-modal-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: #718096;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  z-index: 10;
+}
+
+.personel-info-modal-close:hover {
+  background: #f7fafc;
+  color: #4a5568;
+}
+
+/* Modal Title */
+.personel-info-modal-content h3 {
+  margin: 0 0 24px 0; /* Add proper spacing below title */
+  color: #2d3748;
+  font-size: 1.25rem;
+  font-weight: 600;
+  padding-right: 40px; /* Make room for close button */
+}
+
+.personel-info-modal-content .personel-info-card {
+  display: none; /* ← This is causing issues since you're not using cards in modals */
 }
 
 /* Make the card fill the modal completely */
@@ -1475,6 +1515,7 @@ export default {
 /* Form Styles */
 .personel-info-form-group {
   margin-bottom: 16px;
+  margin-left: 10px;
 }
 
 .personel-info-form-group label {
@@ -1605,4 +1646,5 @@ export default {
     border-radius: 0;
   }
 }
+
 </style>

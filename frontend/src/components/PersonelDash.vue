@@ -201,19 +201,21 @@
             </div>
           </div>
 
-          <div class="form-actions">
-            <button type="button" class="btn btn-danger" @click="deletePersonnel" :disabled="deleting">
-              {{ deleting ? 'Deleting...' : 'Delete Personnel' }}
-            </button>
-            <div class="form-actions-right">
-              <button type="button" @click="closeModals" class="btn btn-cancel">
-                Cancel
-              </button>
-              <button type="submit" class="btn btn-submit" :disabled="updating">
-                {{ updating ? 'Updating...' : 'Update Personnel' }}
-              </button>
-            </div>
-          </div>
+<div class="edit-personnel-actions compact">
+  <div class="edit-personnel-actions-left">
+    <button type="button" class="btn btn-danger" @click="deletePersonnel" :disabled="deleting">
+      {{ deleting ? 'Deleting...' : 'Delete' }}
+    </button>
+  </div>
+  <div class="edit-personnel-actions-right">
+    <button type="button" @click="closeModals" class="btn btn-cancel">
+      Cancel
+    </button>
+    <button type="submit" class="btn btn-submit" :disabled="updating">
+      {{ updating ? 'Updating...' : 'Update' }}
+    </button>
+  </div>
+</div>
         </form>
       </div>
     </div>
@@ -385,6 +387,47 @@
   </div>
 </div>
 
+<!-- Add this before closing template tag -->
+<!-- Project Info Modal -->
+<div v-if="showProjectInfo" class="modal-overlay">
+  <div class="modal-content large-modal" @click.stop>
+    <ProjectInfo 
+      :project="selectedProject"
+      :personnel="selectedProjectPersonnel"
+      :vehicles="selectedProjectVehicles"
+      @close="closeProjectInfo"
+      @edit-project="handleProjectEdit"
+      @edit-personnel="handlePersonnelManagement"
+      @edit-vehicles="handleVehiclesManagement"
+      @project-updated="handleProjectUpdated"
+      @open-personnel-card="openPersonnelCardFromProject"
+    />
+  </div>
+</div>
+
+<!-- Add these before closing template tag -->
+<!-- Add Personnel Modal -->
+<div v-if="showPersonnelForm" class="modal-overlay" @click="closePersonnelForm">
+  <div class="modal-content add-personnel-form" @click.stop>
+    <AddPersonel 
+      :project="selectedProject"
+      @close="closePersonnelForm"
+      @personnelUpdated="handleProjectUpdated"
+    />
+  </div>
+</div>
+
+<!-- Add Vehicles Modal -->
+<div v-if="showVehiclesForm" class="modal-overlay" @click="closeVehiclesForm">
+  <div class="modal-content add-vehicles-form" @click.stop>
+    <AddVehicles 
+      :project="selectedProject" 
+      @close="closeVehiclesForm"
+      @vehiclesUpdated="handleProjectUpdated"
+    />
+  </div>
+</div>
+
     <!-- View Personnel Modal -->
     <div v-if="showViewModal && selectedPersonnel" class="modal-overlay">
       <div class="modal-content large-modal" @click.stop>
@@ -412,11 +455,17 @@
 <script>
 import axios from "axios";
 import PersonelInfo from './PersonelInfo.vue';
+import ProjectInfo from './ProjectInfo.vue';
+import AddPersonel from './AddPersonel.vue';  // Add this
+import AddVehicles from './AddVehicles.vue';
 
 export default {
   name: 'PersonnelPage',
   components:{
-    PersonelInfo
+    PersonelInfo,
+    ProjectInfo,
+        AddPersonel,  // Add this
+    AddVehicles 
   },
   data() {
     return {
@@ -424,6 +473,13 @@ export default {
       loading: false,
       error: false,
       showPersonelInfo: false,
+          showProjectInfo: false,
+    selectedProject: null,
+    selectedProjectPersonnel: [],
+    selectedProjectVehicles: [],
+    fromProjectInfo: false,
+    showVehiclesForm: false,
+    showPersonnelForm: false,
       filters: {
         search: '',
         validity: '',
@@ -499,6 +555,111 @@ export default {
     }
   },
   methods: {
+
+    async openPersonnelCardFromProject(person) {
+    try {
+      // Get basic personnel data with all their records
+      const personnelResponse = await axios.get(`http://localhost:8000/personel/${person.personel_id}`);
+      
+      // Get personnel's projects
+      const projectsResponse = await axios.get(`http://localhost:8000/personel/${person.personel_id}/projects`);
+      
+      // Get full project details for each assigned project
+      const projectPromises = projectsResponse.data.map(async (project) => {
+        const fullProjectResponse = await axios.get(`http://localhost:8000/projects/${project.project_id}`);
+        return {
+          ...fullProjectResponse.data,
+          date_start: fullProjectResponse.data.date_start,
+          duration: parseInt(fullProjectResponse.data.duration) || 0
+        };
+      });
+      
+      const projects = await Promise.all(projectPromises);
+      
+      // Combine personnel data with projects
+      this.selectedPersonnel = {
+        ...personnelResponse.data,
+        projects: projects
+      };
+      
+      this.showProjectInfo = false; // Hide ProjectInfo
+      this.showPersonelInfo = true; // Show PersonelInfo
+    } catch (error) {
+      console.error("Failed to load personnel data", error);
+      alert('Failed to load personnel details. Please try again.');
+    }
+  }, 
+
+  async openProjectCard(project) {
+    try {
+      this.selectedProject = project;
+      
+      // Fetch assigned personnel
+      const personnelResponse = await axios.get(`http://localhost:8000/projects/${project.project_id}/personel`);
+      this.selectedProjectPersonnel = personnelResponse.data;
+      
+      // Fetch assigned vehicles
+      const vehiclesResponse = await axios.get(`http://localhost:8000/projects/${project.project_id}/vehicles`);
+      this.selectedProjectVehicles = vehiclesResponse.data;
+      
+      this.showProjectInfo = true;
+      this.showPersonelInfo = false; // Close PersonelInfo if open
+    } catch (error) {
+      console.error('Error fetching project details:', error);
+      this.selectedProjectPersonnel = [];
+      this.selectedProjectVehicles = [];
+      this.showProjectInfo = true;
+    }
+  },
+
+  closeProjectInfo() {
+    this.showProjectInfo = false;
+    this.selectedProject = null;
+    this.selectedProjectPersonnel = [];
+    this.selectedProjectVehicles = [];
+  },
+
+  handleProjectEdit(project) {
+    this.selectedProject = project;
+    // Additional edit logic if needed
+  },
+
+  handlePersonnelManagement() {
+    this.showProjectInfo = false;
+    this.showPersonnelForm = true;
+    this.fromProjectInfo = true;
+  },
+
+  handleVehiclesManagement() {
+    this.showProjectInfo = false;
+    this.showVehiclesForm = true;
+    this.fromProjectInfo = true;
+  },
+
+  handleProjectUpdated() {
+    if (this.selectedProject) {
+      this.openProjectCard(this.selectedProject); // Refresh data
+    }
+  },
+
+  closePersonnelForm() {
+    this.showPersonnelForm = false;
+    if (this.fromProjectInfo) {
+      this.openProjectCard(this.selectedProject);
+      this.fromProjectInfo = false;
+    }
+  },
+
+  closeVehiclesForm() {
+    this.showVehiclesForm = false;
+    if (this.fromProjectInfo) {
+      this.openProjectCard(this.selectedProject);
+      this.fromProjectInfo = false;
+    }
+  },
+
+
+    
     handleMedicalCreated(newMedical) {
   // Update the selected personnel data
   if (!this.selectedPersonnel.medicals) {
@@ -566,11 +727,11 @@ handlePersonnelUpdated() {
 },
 
 // Handle project card opening from PersonelInfo
-openProjectCard(project) {
-  // You can implement this based on your existing project opening logic
-  console.log('Open project card:', project);
-  // this.$emit('open-project-card', project); // If you have a parent handler
-},
+// openProjectCard(project) {
+//   // You can implement this based on your existing project opening logic
+//   console.log('Open project card:', project);
+//   // this.$emit('open-project-card', project); // If you have a parent handler
+// },
     toDateOnly(date) {
       if (!date) return null;
       return new Date(date).toISOString().split("T")[0]; // "YYYY-MM-DD"
@@ -1016,6 +1177,7 @@ openProjectCard(project) {
 
 /* Ensure modal overlay covers everything */
 .modal-overlay {
+  z-index: 1000;
   backdrop-filter: blur(5px);
 }
 
@@ -1360,6 +1522,12 @@ select {
 .btn-danger {
   background: #ef4444;
   color: white;
+  padding: 8px 16px; /* Smaller padding */
+  font-size: 0.8rem; /* Smaller font */
+  border-radius: 4px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
 }
 
 .btn-danger:hover {
@@ -1478,17 +1646,25 @@ select {
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.588);
 }
 
+.create-modal h3 {
+  text-align: center;
+  margin-bottom: 25px;
+  color: #374151;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
 .create-modal {
-  max-width: 600px;
+  max-width: 450px;
   max-height: 90vh;
   overflow-y: auto;
 }
 
-.large-modal {
+/* .large-modal {
   max-width: 50%;
   width: 50%;
   max-height: 90vh;
-}
+} */
 
 .create-form {
   display: flex;
@@ -1533,11 +1709,13 @@ select {
 
 .form-actions {
   display: flex;
+  align-items: center;
   gap: 12px;
   justify-content: space-between; /* For delete button on left, other actions on right */
   margin-top: 20px;
   padding-top: 20px;
   border-top: 1px solid #e5e7eb;
+  gap: 20px;
 }
 
 .form-actions-right {
@@ -1712,6 +1890,140 @@ select {
   .form-actions-right {
     width: 100%;
     justify-content: space-between;
+  }
+}
+.modal-overlay .modal-content.add-personnel-form,
+.modal-overlay .modal-content.add-vehicles-form {
+  max-width: 45%;
+  width: 45%;
+  margin-top: 20px;
+}
+
+/* New CSS for Edit Personnel Form Buttons - Compact Version */
+.edit-personnel-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid #e5e7eb;
+  width: 100%;
+}
+
+.edit-personnel-actions-left {
+  flex: 1;
+}
+
+.edit-personnel-actions-right {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+/* Compact button sizing for edit form */
+.edit-personnel-actions .btn-danger,
+.edit-personnel-actions .btn-cancel,
+.edit-personnel-actions .btn-submit {
+  min-width: 120px;
+  padding: 10px 16px;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: center;
+  white-space: nowrap;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Even more compact for tight spaces */
+.edit-personnel-actions.compact .btn-danger,
+.edit-personnel-actions.compact .btn-cancel,
+.edit-personnel-actions.compact .btn-submit {
+  min-width: 110px;
+  padding: 8px 14px;
+  font-size: 0.8rem;
+  height: 36px;
+}
+
+/* Specific button styles */
+.edit-personnel-actions .btn-danger {
+  background: #ef4444;
+  color: white;
+}
+
+.edit-personnel-actions .btn-danger:hover:not(:disabled) {
+  background: #dc2626;
+  transform: translateY(-1px);
+}
+
+.edit-personnel-actions .btn-cancel {
+  background: #6b7280;
+  color: white;
+}
+
+.edit-personnel-actions .btn-cancel:hover {
+  background: #4b5563;
+  transform: translateY(-1px);
+}
+
+.edit-personnel-actions .btn-submit {
+  background: #667eea;
+  color: white;
+}
+
+.edit-personnel-actions .btn-submit:hover:not(:disabled) {
+  background: #5a67d8;
+  transform: translateY(-1px);
+}
+
+.edit-personnel-actions .btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Responsive design for mobile */
+@media (max-width: 768px) {
+  .edit-personnel-actions {
+    flex-direction: column;
+    gap: 10px;
+  }
+  
+  .edit-personnel-actions-left,
+  .edit-personnel-actions-right {
+    width: 100%;
+  }
+  
+  .edit-personnel-actions-right {
+    justify-content: space-between;
+  }
+  
+  .edit-personnel-actions .btn-danger,
+  .edit-personnel-actions .btn-cancel,
+  .edit-personnel-actions .btn-submit {
+    min-width: 100px;
+    flex: 1;
+    font-size: 0.8rem;
+    padding: 8px 12px;
+    height: 36px;
+  }
+}
+
+/* For very small screens */
+@media (max-width: 480px) {
+  .edit-personnel-actions .btn-danger,
+  .edit-personnel-actions .btn-cancel,
+  .edit-personnel-actions .btn-submit {
+    min-width: 90px;
+    font-size: 0.75rem;
+    padding: 6px 10px;
+    height: 34px;
   }
 }
 </style>

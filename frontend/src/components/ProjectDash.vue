@@ -303,7 +303,7 @@
     <div v-if="showPersonnelBreakdown && selectedProject" class="modal-overlay" @click="closePersonnelBreakdown">
       <div class="modal-content breakdown-modal" @click.stop>
         <div class="modal-header">
-          <h3>Personnel - {{ selectedProject.project_name }}</h3>
+          <h3>{{ selectedProject.project_code }} - {{ selectedProject.project_name }}</h3>
           <button class="modal-close-btn" @click="closePersonnelBreakdown">×</button>
         </div>
         <div class="breakdown-content">
@@ -329,7 +329,7 @@
     <div v-if="showVehiclesBreakdown && selectedProject" class="modal-overlay" @click="closeModals">
       <div class="modal-content breakdown-modal" @click.stop>
         <div class="modal-header">
-          <h3>Vehicles - {{ selectedProject.project_name }}</h3>
+          <h3>{{ selectedProject.project_code }} - {{ selectedProject.project_name }}</h3>
           <button class="modal-close-btn" @click="closeModals">×</button>
         </div>
         <div class="breakdown-content">
@@ -369,22 +369,40 @@
 
     <!-- Add Personnel Modal -->
     <div v-if="showPersonnelForm" class="modal-overlay" @click="closeModals">
-      <div class="modal-content large-modal" @click.stop>
+      <div class="modal-content add-personnel-form" @click.stop>
         <AddPersonel 
-          :project="selectedProject" 
-          @close="closeModals"
-          @personnelUpdated="handlePersonnelUpdated"
+      :project="selectedProject"
+      @close="closePersonnelForm"
+      @personnelUpdated="handleProjectUpdated"
         />
       </div>
     </div>
 
     <!-- Add Vehicles Modal -->
-    <div v-if="showVehiclesForm" class="modal-overlay" @click="closeModals">
-      <div class="modal-content" @click.stop>
-        <AddVehicles 
-          :project="selectedProject" 
+<div v-if="showVehiclesForm" class="modal-overlay" @click="closeVehiclesForm">
+  <div class="modal-content add-vehicles-form" @click.stop>
+    <AddVehicles 
+      :project="selectedProject" 
+      @close="closeVehiclesForm"
+      @vehiclesUpdated="handleProjectUpdated"
+    />
+  </div>
+</div>
+
+    <!-- Project Info Component -->
+    <div v-if="showProjectInfo" class="modal-overlay" @click="closeModals">
+      <div class="modal-content large-modal" @click.stop>
+        <ProjectInfo 
+          :project="selectedProject"
+          :personnel="selectedProjectPersonnel"
+          :vehicles="selectedProjectVehicles"
           @close="closeModals"
-          @vehiclesUpdated="getProjects"  
+          @edit-project="handleProjectEdit"
+          @edit-personnel="handlePersonnelManagement" 
+          @edit-vehicles="handleVehiclesManagement"
+          @open-personnel-card="openPersonnelCard"
+          @open-vehicle-card="openVehicleCard"
+          @project-updated="handleProjectUpdated"
         />
       </div>
     </div>
@@ -409,6 +427,7 @@ import PersonelInfo from "./PersonelInfo.vue";
 import AddPersonel from "./AddPersonel.vue";
 import VehiclesCard from "./VehiclesCard.vue";
 import AddVehicles from "./AddVehicles.vue";
+import ProjectInfo from "./ProjectInfo.vue";
 
 export default {
   name: 'ProjectDashboard',
@@ -417,15 +436,22 @@ export default {
     PersonelInfo,
     AddPersonel, 
     VehiclesCard, 
-    AddVehicles
+    AddVehicles,
+    ProjectInfo
   },
   data() {
     return {
+      fromProjectInfo: false,
       projects: [],
       loading: false,
       error: false,
       searchTerm: '',
       // Modal states
+      showProjectInfo: false,
+      showProjectInfoBeforeChild: false,
+      showResourcesModalBeforeChild: false,
+      selectedProjectPersonnel: [],
+      selectedProjectVehicles: [],
       showProjectCard: false,
       showPersonelInfo: false,
       showVehicleCard: false,
@@ -477,6 +503,125 @@ export default {
     }
   },
   methods: {
+      async loadProjectResources(projectId) {
+    try {
+      const [personnel, vehicles] = await Promise.all([
+        this.getProjectPersonnel(projectId),
+        this.getProjectVehicles(projectId)
+      ]);
+      this.selectedProjectPersonnel = personnel;
+      this.selectedProjectVehicles = vehicles;
+    } catch (error) {
+      console.error('Error loading project resources:', error);
+    }
+  },
+    async openProjectInfo(project) {
+    this.selectedProject = project;
+    await this.loadProjectResources(project.project_id);
+    this.showProjectInfo = true;
+  },
+    // Close ProjectInfo
+  closeProjectInfo() {
+    this.showProjectInfo = false;
+    this.selectedProject = null;
+    this.selectedProjectPersonnel = [];
+    this.selectedProjectVehicles = [];
+  },
+    handleProjectEdit(project) {
+      console.log('Edit project requested:', project);
+      // You can implement project editing logic here
+      // For now, just close and reopen the project info
+      this.showProjectInfo = false;
+      setTimeout(() => {
+        this.selectedProject = project;
+        this.showProjectInfo = true;
+      }, 100);
+    },
+      openPersonnelManagement() {
+    // Track which modal we're coming from
+    this.showProjectInfoBeforeChild = this.showProjectInfo;
+    this.showResourcesModalBeforeChild = this.showResourcesModal;
+    
+    this.showResourcesModal = false;
+    this.showProjectInfo = false;
+    this.showPersonnelManagement = true;
+  },
+    openVehiclesManagement() {
+    // Track which modal we're coming from
+    this.showProjectInfoBeforeChild = this.showProjectInfo;
+    this.showResourcesModalBeforeChild = this.showResourcesModal;
+    
+    this.showResourcesModal = false;
+    this.showProjectInfo = false;
+    this.showVehiclesManagement = true;
+  },
+// Replace the existing openPersonnelCard method with this implementation:
+async openPersonnelCard(person) {
+  try {
+    this.loadingPersonnel = true;
+    
+    // Get basic personnel data
+    const personnelResponse = await axios.get(`http://localhost:8000/personel/${person.personel_id}`);
+    
+    // Get personnel's projects with full details
+    const projectsResponse = await axios.get(`http://localhost:8000/personel/${person.personel_id}/projects`);
+    
+    // Get full project details for each assigned project
+    const projectPromises = projectsResponse.data.map(async (project) => {
+      const fullProjectResponse = await axios.get(`http://localhost:8000/projects/${project.project_id}`);
+      return {
+        ...fullProjectResponse.data,
+        date_start: fullProjectResponse.data.date_start,
+        duration: parseInt(fullProjectResponse.data.duration) || 0
+      };
+    });
+    
+    const projects = await Promise.all(projectPromises);
+    
+    // Combine personnel data with projects
+    this.selectedPersonnel = {
+      ...personnelResponse.data,
+      projects: projects // Add projects to personnel data
+    };
+    
+    this.showProjectInfo = false; // Close ProjectInfo
+    this.showPersonelInfo = true; // Open PersonelInfo
+  } catch (error) {
+    console.error("Failed to load personnel data", error);
+    alert('Failed to load personnel details. Please try again.');
+  } finally {
+    this.loadingPersonnel = false;
+  }
+},
+      handleProjectUpdated() {
+    console.log('Project updated, refreshing data...');
+    // Refresh the projects data
+    this.getProjects();
+    
+    // Also refresh the resources for the current project
+    if (this.selectedProject) {
+      this.loadProjectResources(this.selectedProject.project_id);
+    }
+  },
+
+  closeChildModals() {
+    this.showPersonnelManagement = false;
+    this.showVehiclesManagement = false;
+    
+    if (this.selectedProject) {
+      this.loadProjectResources(this.selectedProject.project_id);
+    }
+    
+    if (this.showProjectInfoBeforeChild) {
+      this.showProjectInfo = true;
+      this.showProjectInfoBeforeChild = false;
+    } 
+    if (this.showResourcesModalBeforeChild) {
+      this.showResourcesModal = true;
+      this.showResourcesModalBeforeChild = false;
+    }
+  },
+
     async getProjects() {
       try {
         this.loading = true;
@@ -613,6 +758,63 @@ export default {
       }
       this.getProjects();
     },
+handlePersonnelManagement() {
+    this.showProjectInfo = false;
+    this.showPersonnelForm = true;
+    this.fromProjectInfo = true;
+},
+
+closePersonnelForm() {
+    this.showPersonnelForm = false;
+    
+    // Only return to ProjectInfo if we came from there
+    if (this.fromProjectInfo) {
+      if (this.selectedProject) {
+        this.loadProjectResources(this.selectedProject.project_id);
+        this.showProjectInfo = true;
+      }
+    }
+    
+    this.fromProjectInfo = false; // Reset the flag
+  },
+    async getProjectPersonnel(projectId) {
+    try {
+      const response = await axios.get(`http://localhost:8000/projects/${projectId}/personel`);
+      return response.data;
+    } catch (error) {
+      console.error("Failed to load project personnel", error);
+      return [];
+    }
+  },
+
+  async getProjectVehicles(projectId) {
+    try {
+      const response = await axios.get(`http://localhost:8000/projects/${projectId}/vehicles`);
+      return response.data;
+    } catch (error) {
+      console.error("Failed to load project vehicles", error);
+      return [];
+    }
+  },
+    handleVehiclesManagement() {
+    this.showProjectInfo = false;
+    this.showVehiclesForm = true;
+    this.fromProjectInfo = true;  // Reuse the same flag
+  },
+
+  closeVehiclesForm() {
+    this.showVehiclesForm = false;
+    
+    // Only return to ProjectInfo if we came from there
+    if (this.fromProjectInfo) {
+      if (this.selectedProject) {
+        this.loadProjectResources(this.selectedProject.project_id);
+        this.showProjectInfo = true;
+      }
+    }
+    
+    this.fromProjectInfo = false; // Reset the flag
+  },
 
     // All record event handlers to refresh data
     async handleMedicalCreated() {
@@ -678,8 +880,7 @@ export default {
 
     // Handle project card opening from PersonelInfo
     openProjectCardFromPersonel(project) {
-      this.selectedProject = project;
-      this.showProjectCard = true;
+this.openProjectInfo(project);
       this.closePersonelInfo();
     },
 
@@ -781,6 +982,7 @@ export default {
     openPersonnelForm(project) {
       this.selectedProject = project;
       this.showPersonnelForm = true;
+      this.fromProjectInfo = false;
     },
 
     openVehiclesForm(project) {
@@ -797,9 +999,12 @@ export default {
       this.showCreateForm = false;
       this.showPersonnelBreakdown = false;
       this.showVehiclesBreakdown = false;
+      this.showProjectInfo = false;
       this.selectedProject = null;
       this.selectedPersonnel = null;
       this.selectedVehicle = null;
+      this.selectedProjectPersonnel = [];
+      this.selectedProjectVehicles = []; 
       this.loadingPersonnel = false;
     },
 
@@ -914,6 +1119,7 @@ h1 {
   transition: all 0.3s ease;
   white-space: nowrap;
   font-size: 0.9rem;
+  /* width: auto; */
 }
 
 .btn-create:hover {
@@ -993,20 +1199,20 @@ h1 {
 
 /* Assigned column status colors */
 .col-assigned.sufficient {
-  background-color: #f0fff4 !important; /* Soft green */
+  background-color: #c6f6d5 !important; /* Soft green */
 }
 
 .col-assigned.insufficient {
-  background-color: #fff5f5 !important; /* Soft red */
+  background-color: #fed7d7 !important; /* Soft red */
 }
 
-.bordered-table tr:hover .col-assigned.sufficient {
+/* .bordered-table tr:hover .col-assigned.sufficient {
   background-color: #e6ffed !important;
 }
 
 .bordered-table tr:hover .col-assigned.insufficient {
   background-color: #ffe6e6 !important;
-}
+} */
 
 /* Even narrower column widths */
 .col-code { width: 55px; }
@@ -1025,13 +1231,13 @@ h1 {
 
 .project-code {
   font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-  font-weight: 600;
+  font-weight: 800;
   color: #2d3748;
   background: #f7fafc;
   padding: 2px 4px;
   border-radius: 4px;
   border: 1px solid #e2e8f0;
-  font-size: 0.7rem;
+  font-size: 0.83rem;
   display: inline-block;
 }
 
@@ -1195,8 +1401,8 @@ h1 {
   transition: all 0.2s ease;
   text-align: center;
   white-space: nowrap;
-  flex: 1;
-  min-width: 40px;
+  /* flex: 1; */
+  min-width: 30px;
 }
 
 .btn-personnel {
@@ -1298,6 +1504,7 @@ backdrop-filter: blur(5px);
 
 .create-modal {
   max-width: 600px;
+  animation: fadeIn 0.2s ease;
 }
 
 .create-form {
@@ -1308,8 +1515,12 @@ backdrop-filter: blur(5px);
 .breakdown-modal {
   max-width: 350px;
   max-height: 60vh;
+  animation: fadeIn 0.2s ease;
 }
-
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
 .breakdown-content {
   padding: 15px;
   max-height: 50vh;
@@ -1353,10 +1564,99 @@ backdrop-filter: blur(5px);
   padding: 20px;
 }
 
-.large-modal {
+/* .large-modal {
   max-width: 50%;
   width: 50%;
   max-height: 90vh;
+} */
+
+
+.form-row {
+  display: flex;
+  gap: 15px;
+}
+
+.form-group {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.form-group.full-width {
+  width: 100%;
+}
+
+.form-group label {
+  margin-bottom: 6px;
+  font-weight: 600;
+  color: #374151;
+  font-size: 0.9rem;
+}
+
+.form-group input,
+.form-group select {
+  padding: 12px;
+  border: 2px solid #e5e7eb;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  transition: all 0.3s ease;
+  background: white;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.form-group input:required:invalid {
+  border-color: #ef4444;
+}
+
+.form-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.btn-cancel {
+  background: #6b7280;
+  color: white;
+  padding: 12px 24px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.btn-cancel:hover {
+  background: #4b5563;
+}
+
+.btn-submit {
+  background: #667eea;
+  color: white;
+  padding: 12px 24px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.3s ease;
+}
+
+.btn-submit:hover:not(:disabled) {
+  background: #5a67d8;
+  transform: translateY(-1px);
+}
+
+.btn-submit:disabled {
+  background: #9ca3af;
+  cursor: not-allowed;
+  transform: none;
 }
 
 /* Rest of existing styles... */
@@ -1398,5 +1698,38 @@ backdrop-filter: blur(5px);
     flex-direction: row;
     flex-wrap: wrap;
   }
+}
+
+
+.controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap; /* allows wrapping on smaller screens */
+  gap: 10px; /* adds space between search bar and button */
+}
+
+.search-box {
+  flex: 1;
+  min-width: 200px;
+}
+
+.search-box input {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  box-sizing: border-box;
+}
+
+.filter-controls {
+  flex-shrink: 0; /* prevents the button from shrinking */
+}
+.modal-overlay .modal-content.add-personnel-form,
+.modal-overlay .modal-content.add-vehicles-form {
+  max-width: 45%;
+  width: 45%;
+  margin-top: 20px;
 }
 </style>
