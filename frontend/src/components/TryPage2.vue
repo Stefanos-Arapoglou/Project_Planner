@@ -1,1631 +1,907 @@
 <template>
-  <div class="personnel-page">
-    <!-- Header Section -->
-    <div class="dashboard-header">
-      <h1>Personnel Management</h1>
-    </div>
-
-    <!-- Controls Section -->
-    <div class="controls">
-      <div class="search-box">
-        <input 
-          type="text" 
-          v-model="filters.search"
-          placeholder="Search by name, surname, or role..."
-        >
+  <div class="calendar-view">
+    <div class="calendar-header">
+      <h2 class="title">Project Calendar</h2>
+    <div class="header-controls">
+      <div class="control-group search-group">
+        <label class="control-label">Search:</label>
+        <input
+          type="text"
+          v-model="searchQuery"
+          placeholder="Search by code, name, location..."
+         class="search-input"
+        />
       </div>
-      <div class="filter-controls">
-        <select v-model="filters.validity">
-          <option value="">All Status</option>
-          <option value="VALID">Valid</option>
-          <option value="ALMOST">Almost Expired</option>
-          <option value="INVALID">Invalid</option>
-        </select>
-        <select v-model="filters.role">
-          <option value="">All Roles</option>
-          <option v-for="role in roles" :key="role" :value="role">
-            {{ role }}
-          </option>
-        </select>
-        <button class="btn btn-create" @click="showCreateModal = true">
-          + Create New Personnel
+      <div class="control-group">
+        <label class="control-label">Number of Days:</label>
+        <div class="input-with-button">
+          <input 
+            type="number" 
+            v-model.number="calendarDays" 
+            min="1" 
+            max="365"
+            class="days-input"
+          />
+          <button class="refresh-btn" @click="generateDates">Refresh</button>
+        </div>
+      </div>
+        <div class="control-group">
+          <label class="control-label">Start Date:</label>
+          <input 
+            type="date" 
+            v-model="startDate" 
+            class="date-input"
+            @change="generateDates"
+          />
+        </div>
+        <button class="today-btn" @click="goToToday">Today</button>
+        <!-- New: Show All Projects Button -->
+        <button 
+          class="show-all-btn" 
+          @click="toggleShowAllProjects"
+          :class="{ active: showAllProjects }"
+        >
+          {{ showAllProjects ? 'Show Filtered' : 'Show All' }}
         </button>
       </div>
     </div>
 
-    <!-- Main Table -->
     <div class="table-container">
-      <table v-if="filteredPersonnel.length > 0" class="bordered-table excel-style-table">
-        <thead>
+      <table class="calendar-table">
+        <!-- Month Header Row -->
+        <thead class="month-header">
           <tr>
-            <th class="col-name">Name</th>
-            <th class="col-surname">Surname</th>
-            <th class="col-role">Role</th>
-            <th class="col-medical">Medical Expiry</th>
-            <th class="col-education">Education Expiry</th>
-            <th class="col-xray">X-Ray Expiry</th>
-            <th class="col-status">Status</th>
-            <th class="col-actions">Actions</th>
+            <th class="sticky-col month-col" colspan="3">Timeline</th>
+            <th 
+              v-for="month in monthHeaders" 
+              :key="month.key"
+              :colspan="month.days"
+              class="month-header-cell"
+            >
+              {{ month.name }} {{ month.year }}
+            </th>
           </tr>
         </thead>
+        
+        <!-- Date Header Row -->
+        <thead class="date-header">
+          <tr>
+            <th class="sticky-col col-code" @click="sortBy('code')">
+              <div class="header-content">
+                Code
+                <span class="sort-indicator">{{ sortField === 'code' ? (sortDirection === 'asc' ? '↑' : '↓') : '' }}</span>
+              </div>
+            </th>
+            <th class="sticky-col col-name" @click="sortBy('name')">
+              <div class="header-content">
+                Project Name
+                <span class="sort-indicator">{{ sortField === 'name' ? (sortDirection === 'asc' ? '↑' : '↓') : '' }}</span>
+              </div>
+            </th>
+            <th class="sticky-col col-duration" @click="sortBy('duration')">
+              <div class="header-content">
+                Days
+                <span class="sort-indicator">{{ sortField === 'duration' ? (sortDirection === 'asc' ? '↑' : '↓') : '' }}</span>
+              </div>
+            </th>
+            <th 
+              v-for="date in dateRange" 
+              :key="date.getTime()"
+              :class="{
+                'date-header-cell': true,
+                'today': isToday(date),
+                'weekend': isWeekend(date),
+                'month-start': isMonthStart(date)
+              }"
+            >
+              <div class="date-content">
+                <div class="date-day">{{ formatDateDay(date) }}</div>
+                <div class="date-weekday">{{ formatDateWeekday(date) }}</div>
+              </div>
+            </th>
+          </tr>
+        </thead>
+        
         <tbody>
           <tr 
-            v-for="person in filteredPersonnel" 
-            :key="person.personel_id" 
-            class="table-row"
+            v-for="project in sortedProjects" 
+            :key="project.project_id"
+            class="project-row"
           >
-            <td class="col-name cell-bordered">
-              <strong>{{ person.personel_name }}</strong>
+            <td class="sticky-col col-code" @click="onProjectClick(project)">
+              <span class="project-code">{{ project.project_code }}</span>
             </td>
-            <td class="col-surname cell-bordered">
-              <strong>{{ person.personel_surname }}</strong>
-            </td>
-            <td class="col-role cell-bordered">
-              <div :class="['role-cell', getRoleClass(person.role)]">
-                <span class="role-text">{{ person.role }}</span>
+            <td class="sticky-col col-name" @click="onProjectClick(project)">
+              <div class="project-info">
+                <span class="project-name">{{ project.project_name }}</span>
+                <div class="project-date">
+                  {{ formatProjectDate(project.date_start) }} - {{ getProjectEndDateFormatted(project) }}
+                </div>
               </div>
             </td>
-            <td class="col-medical cell-bordered">
-              <div class="date-cell clickable" :class="getDateStatus(getMedicalExpiration(person))" @click="openMedicalModal(person)">
-                <span class="date">{{ formatDate(getMedicalExpiration(person)) }}</span>
-                <span class="days-remaining">{{ getDaysRemaining(getMedicalExpiration(person)) }}</span>
-              </div>
+            <td class="sticky-col col-duration" @click="onProjectClick(project)">
+              <span class="duration-value">{{ project.duration || 'N/A' }}</span>
             </td>
-            <td class="col-education cell-bordered">
-              <div class="date-cell clickable" :class="getDateStatus(getEducationExpiration(person))" @click="openEducationModal(person)">
-                <span class="date">{{ formatDate(getEducationExpiration(person)) }}</span>
-                <span class="days-remaining">{{ getDaysRemaining(getEducationExpiration(person)) }}</span>
-              </div>
-            </td>
-            <td class="col-xray cell-bordered">
-              <div class="date-cell clickable" :class="getDateStatus(getXrayExpiration(person))" @click="openXrayModal(person)">
-                <span class="date">{{ formatDate(getXrayExpiration(person)) }}</span>
-                <span class="days-remaining">{{ getDaysRemaining(getXrayExpiration(person)) }}</span>
-              </div>
-            </td>
-            <td class="col-status cell-bordered">
-              <div :class="['status-cell', `status-${getValidityStatus(person)}`]">
-                <span class="status-text">{{ getValidityStatus(person) }}</span>
-              </div>
-            </td>
-            <td class="col-actions cell-bordered">
-              <div class="action-buttons">
-                <button class="btn btn-edit" @click="editPersonnel(person)">
-                  Edit
-                </button>
-                <button class="btn btn-view" @click="viewPersonnel(person)">
-                  View
-                </button>
-              </div>
+            <td 
+              v-for="date in dateRange" 
+              :key="date.getTime()"
+              :class="{
+                'calendar-cell': true,
+                'active': isActiveOnDate(project, date),
+                'inactive': !isActiveOnDate(project, date),
+                'weekend': isWeekend(date),
+                'today': isToday(date),
+                'clickable': true
+              }"
+              @click="onDateClick(project, date)"
+            >
+              <div class="cell-content"></div>
             </td>
           </tr>
         </tbody>
       </table>
-
-      <div v-else class="empty-state">
-        <div class="empty-icon">👥</div>
-        <h3>No personnel found</h3>
-        <p>Try adjusting your search or filters</p>
-      </div>
     </div>
 
-    <!-- Create Personnel Modal -->
-    <div v-if="showCreateModal" class="modal-overlay">
-      <div class="modal-content create-modal" @click.stop>
-        <h3>Create New Personnel</h3>
-        <form @submit.prevent="createPersonnel" class="create-form">
-          <div class="form-row">
-            <div class="form-group">
-              <label for="personel_name">First Name *</label>
-              <input 
-                type="text" 
-                id="personel_name"
-                v-model="newPersonnel.personel_name" 
-                required
-                placeholder="Enter first name"
-              >
-            </div>
-            <div class="form-group">
-              <label for="personel_surname">Last Name *</label>
-              <input 
-                type="text" 
-                id="personel_surname"
-                v-model="newPersonnel.personel_surname" 
-                required
-                placeholder="Enter last name"
-              >
-            </div>
-          </div>
-
-          <div class="form-row">
-            <div class="form-group">
-              <label for="role">Role *</label>
-              <select id="role" v-model="newPersonnel.role" required>
-                <option value="">Select Role</option>
-                <option value="Engineer">Engineer</option>
-                <option value="Worker">Worker</option>
-                <option value="Driver">Driver</option>
-              </select>
-            </div>
-          </div>
-
-          <div class="form-actions">
-            <button type="button" @click="closeModals" class="btn btn-cancel">
-              Cancel
-            </button>
-            <button type="submit" class="btn btn-submit" :disabled="creating">
-              {{ creating ? 'Creating...' : 'Create Personnel' }}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-
-    <!-- Edit Personnel Modal -->
-    <div v-if="showEditModal && selectedPersonnel" class="modal-overlay">
-      <div class="modal-content create-modal" @click.stop>
-        <h3>Edit Personnel - {{ selectedPersonnel.personel_name }} {{ selectedPersonnel.personel_surname }}</h3>
-        <form @submit.prevent="updatePersonnel" class="create-form">
-          <div class="form-row">
-            <div class="form-group">
-              <label for="edit_personel_name">First Name *</label>
-              <input 
-                type="text" 
-                id="edit_personel_name"
-                v-model="editPersonnelData.personel_name" 
-                required
-                placeholder="Enter first name"
-              >
-            </div>
-            <div class="form-group">
-              <label for="edit_personel_surname">Last Name *</label>
-              <input 
-                type="text" 
-                id="edit_personel_surname"
-                v-model="editPersonnelData.personel_surname" 
-                required
-                placeholder="Enter last name"
-              >
-            </div>
-          </div>
-
-          <div class="form-row">
-            <div class="form-group">
-              <label for="edit_role">Role *</label>
-              <select id="edit_role" v-model="editPersonnelData.role" required>
-                <option value="">Select Role</option>
-                <option value="Engineer">Engineer</option>
-                <option value="Worker">Worker</option>
-                <option value="Driver">Driver</option>
-              </select>
-            </div>
-          </div>
-
-          <div class="form-actions">
-            <button type="button" class="btn btn-danger" @click="deletePersonnel" :disabled="deleting">
-              {{ deleting ? 'Deleting...' : 'Delete Personnel' }}
-            </button>
-            <div class="form-actions-right">
-              <button type="button" @click="closeModals" class="btn btn-cancel">
-                Cancel
-              </button>
-              <button type="submit" class="btn btn-submit" :disabled="updating">
-                {{ updating ? 'Updating...' : 'Update Personnel' }}
-              </button>
-            </div>
-          </div>
-        </form>
-      </div>
-    </div>
-
-    <!-- Medical Records Modal -->
-    <div v-if="showMedicalModal && selectedPersonnel" class="modal-overlay">
+    <!-- Modal for Project Date Assignment -->
+    <div v-if="showDateAssignmentModal" class="modal-overlay" @click="closeModals">
       <div class="modal-content" @click.stop>
-        <h3>Medical Records - {{ selectedPersonnel.personel_name }} {{ selectedPersonnel.personel_surname }}</h3>
-        <div class="records-list">
-          <div v-for="medical in (selectedPersonnel.medicals || [])" :key="medical.exams_id" class="record-item">
-            <div class="record-info">
-              <strong>Exam Date:</strong> {{ formatDate(medical.exam_date) }}<br>
-              <strong>Expiration:</strong> {{ formatDate(medical.exam_expiration_date) }}
-            </div>
-            <button class="btn btn-remove" @click="removeMedical(medical)">Remove</button>
-          </div>
-          <div v-if="!selectedPersonnel.medicals || selectedPersonnel.medicals.length === 0" class="no-records">
-            No medical records found
-          </div>
+        <div class="modal-header">
+          <h3>Set Project Start Date</h3>
+          <button class="modal-close-btn" @click="closeModals">×</button>
         </div>
-        <div class="modal-actions">
-          <button @click="closeModals" class="btn btn-close">Close</button>
-          <button class="btn btn-add" @click="showNewMedicalForm = true">+ Add New Medical</button>
+        <div class="modal-body">
+          <p>Set <strong>{{ selectedProject?.project_name }}</strong> to start on:</p>
+          <p class="selected-date">{{ formatFullDate(selectedDate) }}</p>
+          <div class="modal-actions">
+            <button class="btn btn-cancel" @click="closeModals">Cancel</button>
+            <button class="btn btn-confirm" @click="updateProjectStartDate">Confirm</button>
+          </div>
         </div>
       </div>
     </div>
 
-    <!-- New Medical Form Modal -->
-    <div v-if="showNewMedicalForm" class="modal-overlay">
+    <!-- Modal for Project Resources -->
+    <div v-if="showResourcesModal" class="modal-overlay" @click="closeModals">
       <div class="modal-content" @click.stop>
-        <h3>Add New Medical Record</h3>
-        <form @submit.prevent="createMedical" class="create-form">
-          <div class="form-group">
-            <label for="exam_date">Exam Date *</label>
-            <input 
-              type="date" 
-              id="exam_date"
-              v-model="newMedical.exam_date" 
-              required
-            >
-          </div>
-          <div class="form-actions">
-            <button type="button" @click="showNewMedicalForm = false" class="btn btn-cancel">
-              Cancel
-            </button>
-            <button type="submit" class="btn btn-submit" :disabled="creatingMedical">
-              {{ creatingMedical ? 'Creating...' : 'Create Medical Record' }}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-
-    <!-- Education Records Modal -->
-    <div v-if="showEducationModal && selectedPersonnel" class="modal-overlay">
-      <div class="modal-content" @click.stop>
-        <h3>Education Records - {{ selectedPersonnel.personel_name }} {{ selectedPersonnel.personel_surname }}</h3>
-        <div class="records-list">
-          <div v-for="education in (selectedPersonnel.education || [])" :key="education.education_id" class="record-item">
-            <div class="record-info">
-              <strong>Education Date:</strong> {{ formatDate(education.education_date) }}<br>
-              <strong>Expiration:</strong> {{ formatDate(education.education_expiration_date) }}<br>
-              <strong>First Time:</strong> {{ education.first_time }}
-            </div>
-            <button class="btn btn-remove" @click="removeEducation(education)">Remove</button>
-          </div>
-          <div v-if="!selectedPersonnel.education || selectedPersonnel.education.length === 0" class="no-records">
-            No education records found
-          </div>
+        <div class="modal-header">
+          <h3>Project Resources - {{ selectedProject?.project_name }}</h3>
+          <button class="modal-close-btn" @click="closeModals">×</button>
         </div>
-        <div class="modal-actions">
-          <button @click="closeModals" class="btn btn-close">Close</button>
-          <button class="btn btn-add" @click="showNewEducationForm = true">+ Add New Education</button>
+        <div class="modal-body">
+
+
+          <div class="modal-actions">
+            <button class="btn btn-personnel" @click="openPersonnelManagement">
+              Manage Personnel
+            </button>
+            <button class="btn btn-vehicles" @click="openVehiclesManagement">
+              Manage Vehicles
+            </button>
+            <button class="btn btn-close" @click="closeModals">Close</button>
+          </div>
         </div>
       </div>
     </div>
 
-    <!-- New Education Form Modal -->
-    <div v-if="showNewEducationForm" class="modal-overlay">
-      <div class="modal-content" @click.stop>
-        <h3>Add New Education Record</h3>
-        <form @submit.prevent="createEducation" class="create-form">
-          <div class="form-group">
-            <label for="education_date">Education Date *</label>
-            <input 
-              type="date" 
-              id="education_date"
-              v-model="newEducation.education_date" 
-              required
-            >
-          </div>
-          <div class="form-group">
-            <label for="first_time">First Time</label>
-            <select id="first_time" v-model="newEducation.first_time">
-              <option value="Yes">Yes</option>
-              <option value="No">No</option>
-            </select>
-          </div>
-          <div class="form-actions">
-            <button type="button" @click="showNewEducationForm = false" class="btn btn-cancel">
-              Cancel
-            </button>
-            <button type="submit" class="btn btn-submit" :disabled="creatingEducation">
-              {{ creatingEducation ? 'Creating...' : 'Create Education Record' }}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-
-    <!-- X-Ray Records Modal -->
-    <div v-if="showXrayModal && selectedPersonnel" class="modal-overlay">
-      <div class="modal-content" @click.stop>
-        <h3>X-Ray Records - {{ selectedPersonnel.personel_name }} {{ selectedPersonnel.personel_surname }}</h3>
-        <div class="records-list">
-          <div v-for="xray in (selectedPersonnel.xrays || [])" :key="xray.xray_id" class="record-item">
-            <div class="record-info">
-              <strong>X-Ray Date:</strong> {{ formatDate(xray.xrays_date) }}<br>
-              <strong>Expiration:</strong> {{ formatDate(xray.xrays_expiration_date) }}
-            </div>
-            <button class="btn btn-remove" @click="removeXray(xray)">Remove</button>
-          </div>
-          <div v-if="!selectedPersonnel.xrays || selectedPersonnel.xrays.length === 0" class="no-records">
-            No X-Ray records found
-          </div>
-        </div>
-        <div class="modal-actions">
-          <button @click="closeModals" class="btn btn-close">Close</button>
-          <button class="btn btn-add" @click="showNewXrayForm = true">+ Add New X-Ray</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- New X-Ray Form Modal -->
-    <div v-if="showNewXrayForm" class="modal-overlay">
-      <div class="modal-content" @click.stop>
-        <h3>Add New X-Ray Record</h3>
-        <form @submit.prevent="createXray" class="create-form">
-          <div class="form-group">
-            <label for="xrays_date">X-Ray Date *</label>
-            <input 
-              type="date" 
-              id="xrays_date"
-              v-model="newXray.xrays_date" 
-              required
-            >
-          </div>
-          <div class="form-actions">
-            <button type="button" @click="showNewXrayForm = false" class="btn btn-cancel">
-              Cancel
-            </button>
-            <button type="submit" class="btn btn-submit" :disabled="creatingXray">
-              {{ creatingXray ? 'Creating...' : 'Create X-Ray Record' }}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-
-    <!-- Personel Info Modal -->
-<div v-if="showPersonelInfo && selectedPersonnel" class="modal-overlay personel-info-overlay">
-  <div class="modal-content personel-info-modal" @click.stop>
-    <PersonelInfo 
-      :personnel="selectedPersonnel"
-      @close="closePersonelInfo"
-      @personnel-updated="handlePersonnelUpdated"
-      @open-project-card="openProjectCard"
-    />
-  </div>
-</div>
-
-<!-- Add this before closing template tag -->
-<!-- Project Info Modal -->
-<div v-if="showProjectInfo" class="modal-overlay">
-  <div class="modal-content large-modal" @click.stop>
-    <ProjectInfo 
-      :project="selectedProject"
-      :personnel="selectedProjectPersonnel"
-      :vehicles="selectedProjectVehicles"
-      @close="closeProjectInfo"
-      @edit-project="handleProjectEdit"
-      @edit-personnel="handlePersonnelManagement"
-      @edit-vehicles="handleVehiclesManagement"
-      @project-updated="handleProjectUpdated"
-      @open-personnel-card="openPersonnelCardFromProject"
-    />
-  </div>
-</div>
-
-<!-- Add these before closing template tag -->
-<!-- Add Personnel Modal -->
-<div v-if="showPersonnelForm" class="modal-overlay" @click="closePersonnelForm">
-  <div class="modal-content add-personnel-form" @click.stop>
-    <AddPersonel 
-      :project="selectedProject"
-      @close="closePersonnelForm"
-      @personnelUpdated="handleProjectUpdated"
-    />
-  </div>
-</div>
-
-<!-- Add Vehicles Modal -->
-<div v-if="showVehiclesForm" class="modal-overlay" @click="closeVehiclesForm">
-  <div class="modal-content add-vehicles-form" @click.stop>
-    <AddVehicles 
-      :project="selectedProject" 
-      @close="closeVehiclesForm"
-      @vehiclesUpdated="handleProjectUpdated"
-    />
-  </div>
-</div>
-
-    <!-- View Personnel Modal -->
-    <div v-if="showViewModal && selectedPersonnel" class="modal-overlay">
+    <!-- Project Info Component -->
+    <div v-if="showProjectInfo" class="modal-overlay" @click="closeModals">
       <div class="modal-content large-modal" @click.stop>
-        <h3>View Personnel - {{ selectedPersonnel.personel_name }} {{ selectedPersonnel.personel_surname }}</h3>
-        <!-- Add detailed view form here -->
-        <div class="form-actions">
-          <button @click="closeModals" class="btn btn-close">Close</button>
-        </div>
+        <ProjectInfo 
+          :project="selectedProject"
+          :personnel="selectedProjectPersonnel"
+          :vehicles="selectedProjectVehicles"
+          @close="closeModals"
+          @edit-project="handleProjectEdit"
+          @edit-personnel="openPersonnelManagement"
+          @edit-vehicles="openVehiclesManagement"
+          @open-personnel-card="openPersonnelCard"
+          @open-vehicle-card="openVehicleCard"
+          @project-updated="handleProjectUpdated"
+        />
       </div>
     </div>
 
-    <div v-if="loading" class="loading">
-      <div class="spinner"></div>
-      Loading personnel data...
+        <!-- Personel Info Modal -->
+    <div v-if="showPersonelInfo" class="modal-overlay personel-info-overlay">
+      <div class="modal-content personel-info-modal" @click.stop>
+
+        <div v-if="loadingPersonnel" class="personel-loading">
+          <div class="spinner"></div>
+          Loading personnel data...
+        </div>
+        <PersonelInfo 
+          v-else-if="selectedPersonnel"
+          :personnel="selectedPersonnel"
+          @close="closePersonelInfo"
+          @personel-updated="handlePersonelUpdated"
+          @medical-created="handleMedicalCreated"
+          @xray-created="handleXrayCreated"
+          @education-created="handleEducationCreated"
+          @medical-removed="handleMedicalRemoved"
+          @xray-removed="handleXrayRemoved"
+          @education-removed="handleEducationRemoved"
+          @open-project-card="openProjectCardFromPersonel"
+        />
+      </div>
     </div>
 
-    <div v-if="error" class="error">
-      <div class="error-icon">⚠️</div>
-      <h3>Failed to load personnel data</h3>
-      <p>Please try again later</p>
+    <!-- Personnel Management Component -->
+    <div v-if="showPersonnelManagement" class="modal-overlay" @click="closeChildModals">
+      <div class="modal-content large-modal" @click.stop>
+        <AddPersonel 
+          :project="selectedProject"
+          @close="closeChildModals"
+          @personnelUpdated="handleResourcesUpdated"
+        />
+      </div>
+    </div>
+
+    <!-- Vehicles Management Component -->
+    <div v-if="showVehiclesManagement" class="modal-overlay" @click="closeChildModals">
+      <div class="modal-content large-modal" @click.stop>
+        <AddVehicles 
+          :project="selectedProject"
+          @close="closeChildModals"
+          @vehiclesUpdated="handleResourcesUpdated"
+        />
+      </div>
     </div>
   </div>
 </template>
 
+
+
 <script>
 import axios from "axios";
-import PersonelInfo from './PersonelInfo.vue';
-import ProjectInfo from './ProjectInfo.vue';
-import AddPersonel from './AddPersonel.vue';  // Add this
-import AddVehicles from './AddVehicles.vue';
+import AddPersonel from "./AddPersonel.vue";
+import AddVehicles from "./AddVehicles.vue";
+import ProjectInfo from "./ProjectInfo.vue";
+import PersonelInfo from "./PersonelInfo.vue"; // Import ProjectInfo
 
 export default {
-  name: 'PersonnelPage',
-  components:{
-    PersonelInfo,
+  name: "ProjectCalendar",
+  components: {
+    AddPersonel, 
+    AddVehicles,
     ProjectInfo,
-        AddPersonel,  // Add this
-    AddVehicles 
+    PersonelInfo
   },
   data() {
     return {
-      personnel: [],
-      loading: false,
-      error: false,
-      showPersonelInfo: false,
-          showProjectInfo: false,
-    selectedProject: null,
-    selectedProjectPersonnel: [],
-    selectedProjectVehicles: [],
-    fromProjectInfo: false,
-    showVehiclesForm: false,
-    showPersonnelForm: false,
-      filters: {
-        search: '',
-        validity: '',
-        role: ''
-      },
+       searchQuery: '',
+          showProjectInfoBeforeChild: false,
+    showResourcesModalBeforeChild: false,
+      projects: [],
+      calendarDays: 30,
+      startDate: new Date().toISOString().split('T')[0],
+      dateRange: [],
+      sortField: 'name',
+      sortDirection: 'asc',
+      showAllProjects: false,
+      
       // Modal states
-      showCreateModal: false,
-      showViewModal: false,
-      showEditModal: false,
-      showMedicalModal: false,
-      showEducationModal: false,
-      showXrayModal: false,
-      showNewMedicalForm: false,
-      showNewEducationForm: false,
-      showNewXrayForm: false,
-      selectedPersonnel: null,
-      creating: false,
-      updating: false,
-      deleting: false,
-      creatingMedical: false,
-      creatingEducation: false,
-      creatingXray: false,
-      // New personnel data
-      newPersonnel: {
-        personel_name: '',
-        personel_surname: '',
-        role: ''
-      },
-      // Edit personnel data
-      editPersonnelData: {
-        personel_name: '',
-        personel_surname: '',
-        role: ''
-      },
-      // New record data
-      newMedical: {
-        exam_date: '',
-        personel_id: null
-      },
-      newEducation: {
-        education_date: '',
-        first_time: 'Yes',
-        personel_id: null
-      },
-      newXray: {
-        xrays_date: '',
-        personel: null
-      }
-    }
+      showDateAssignmentModal: false,
+      showResourcesModal: false,
+      showProjectInfo: false, // Add this
+      showPersonnelManagement: false,
+      showVehiclesManagement: false,
+      
+      // Selected items
+      selectedProject: null,
+      selectedDate: null,
+      selectedProjectPersonnel: [],
+      selectedProjectVehicles: [],
+
+          showPersonelInfo: false,
+    selectedPersonnel: null,
+    loadingPersonnel: false
+    };
   },
   computed: {
-    roles() {
-      return [...new Set(this.personnel.map(p => p.role))].filter(role => role);
-    },
-    filteredPersonnel() {
-      return this.personnel.filter(person => {
-        // Search filter
-        const searchLower = this.filters.search.toLowerCase();
-        const matchesSearch = 
-          person.personel_name?.toLowerCase().includes(searchLower) ||
-          person.personel_surname?.toLowerCase().includes(searchLower) ||
-          person.role?.toLowerCase().includes(searchLower);
-        
-        // Validity filter
-        const matchesValidity = !this.filters.validity || 
-                              this.getValidityStatus(person) === this.filters.validity;
-        
-        // Role filter
-        const matchesRole = !this.filters.role || person.role === this.filters.role;
-        
-        return matchesSearch && matchesValidity && matchesRole;
+filteredProjects() {
+      // Start with all projects
+      let list = this.projects || [];
+
+      // Apply search filter if present
+      if (this.searchQuery && this.searchQuery.trim() !== '') {
+        const q = this.searchQuery.toLowerCase();
+        list = list.filter(p => {
+          const code = (p.project_code || '').toString().toLowerCase();
+          const name = (p.project_name || '').toString().toLowerCase();
+          const location = (p.location || '').toString().toLowerCase();
+          return code.includes(q) || name.includes(q) || location.includes(q);
+        });
+      }
+
+      // If "Show All" is toggled, return the searched list
+      if (this.showAllProjects) return list;
+
+      // Otherwise restrict to projects active within the current date range
+      return list.filter(project => {
+        const start = new Date(project.date_start);
+        const end = this.calculateProjectEndDate(project);
+        return this.dateRange.some(d => d >= start && d <= end);
       });
+    },
+    sortedProjects() {
+      return [...this.filteredProjects].sort((a, b) => {
+        let aValue, bValue;
+        
+        if (this.sortField === 'code') {
+          aValue = a.project_code;
+          bValue = b.project_code;
+        } else if (this.sortField === 'duration') {
+          aValue = a.duration || 0;
+          bValue = b.duration || 0;
+        } else {
+          aValue = a.project_name;
+          bValue = b.project_name;
+        }
+
+        if (this.sortDirection === 'asc') {
+          return aValue < bValue ? -1 : aValue > bValue ? 1 : 0;
+        } else {
+          return aValue > bValue ? -1 : aValue < bValue ? 1 : 0;
+        }
+      });
+    },
+    monthHeaders() {
+      if (this.dateRange.length === 0) return [];
+      
+      const months = [];
+      let currentMonth = null;
+      
+      this.dateRange.forEach(date => {
+        const monthKey = `${date.getFullYear()}-${date.getMonth()}`;
+        const monthName = date.toLocaleDateString("en-US", { month: "long" });
+        const year = date.getFullYear();
+        
+        if (!currentMonth || currentMonth.key !== monthKey) {
+          if (currentMonth) {
+            months.push(currentMonth);
+          }
+          currentMonth = {
+            key: monthKey,
+            name: monthName,
+            year: year,
+            days: 1
+          };
+        } else {
+          currentMonth.days++;
+        }
+      });
+      
+      if (currentMonth) {
+        months.push(currentMonth);
+      }
+      
+      return months;
     }
   },
   methods: {
-
-    async openPersonnelCardFromProject(person) {
-    try {
-      // Get basic personnel data with all their records
-      const personnelResponse = await axios.get(`http://localhost:8000/personel/${person.personel_id}`);
-      
-      // Get personnel's projects
-      const projectsResponse = await axios.get(`http://localhost:8000/personel/${person.personel_id}/projects`);
-      
-      // Get full project details for each assigned project
-      const projectPromises = projectsResponse.data.map(async (project) => {
-        const fullProjectResponse = await axios.get(`http://localhost:8000/projects/${project.project_id}`);
-        return {
-          ...fullProjectResponse.data,
-          date_start: fullProjectResponse.data.date_start,
-          duration: parseInt(fullProjectResponse.data.duration) || 0
-        };
-      });
-      
-      const projects = await Promise.all(projectPromises);
-      
-      // Combine personnel data with projects
-      this.selectedPersonnel = {
-        ...personnelResponse.data,
-        projects: projects
-      };
-      
-      this.showProjectInfo = false; // Hide ProjectInfo
-      this.showPersonelInfo = true; // Show PersonelInfo
-    } catch (error) {
-      console.error("Failed to load personnel data", error);
-      alert('Failed to load personnel details. Please try again.');
-    }
-  }, 
-
-  async openProjectCard(project) {
-    try {
-      this.selectedProject = project;
-      
-      // Fetch assigned personnel
-      const personnelResponse = await axios.get(`http://localhost:8000/projects/${project.project_id}/personel`);
-      this.selectedProjectPersonnel = personnelResponse.data;
-      
-      // Fetch assigned vehicles
-      const vehiclesResponse = await axios.get(`http://localhost:8000/projects/${project.project_id}/vehicles`);
-      this.selectedProjectVehicles = vehiclesResponse.data;
-      
-      this.showProjectInfo = true;
-      this.showPersonelInfo = false; // Close PersonelInfo if open
-    } catch (error) {
-      console.error('Error fetching project details:', error);
-      this.selectedProjectPersonnel = [];
-      this.selectedProjectVehicles = [];
-      this.showProjectInfo = true;
-    }
-  },
-
-  closeProjectInfo() {
-    this.showProjectInfo = false;
-    this.selectedProject = null;
-    this.selectedProjectPersonnel = [];
-    this.selectedProjectVehicles = [];
-  },
-
-  handleProjectEdit(project) {
-    this.selectedProject = project;
-    // Additional edit logic if needed
-  },
-
-  handlePersonnelManagement() {
-    this.showProjectInfo = false;
-    this.showPersonnelForm = true;
-    this.fromProjectInfo = true;
-  },
-
-  handleVehiclesManagement() {
-    this.showProjectInfo = false;
-    this.showVehiclesForm = true;
-    this.fromProjectInfo = true;
-  },
-
-  handleProjectUpdated() {
-    if (this.selectedProject) {
-      this.openProjectCard(this.selectedProject); // Refresh data
-    }
-  },
-
-  closePersonnelForm() {
-    this.showPersonnelForm = false;
-    if (this.fromProjectInfo) {
-      this.openProjectCard(this.selectedProject);
-      this.fromProjectInfo = false;
-    }
-  },
-
-  closeVehiclesForm() {
-    this.showVehiclesForm = false;
-    if (this.fromProjectInfo) {
-      this.openProjectCard(this.selectedProject);
-      this.fromProjectInfo = false;
-    }
-  },
-
-
-    
-    handleMedicalCreated(newMedical) {
-  // Update the selected personnel data
-  if (!this.selectedPersonnel.medicals) {
-    this.selectedPersonnel.medicals = [];
-  }
-  this.selectedPersonnel.medicals.push(newMedical);
-  
-  // Force the PersonelInfo to refresh by re-triggering the prop
-  this.$forceUpdate();
-},
-
-handleXrayCreated(newXray) {
-  if (!this.selectedPersonnel.xrays) {
-    this.selectedPersonnel.xrays = [];
-  }
-  this.selectedPersonnel.xrays.push(newXray);
-  this.$forceUpdate();
-},
-
-handleEducationCreated(newEducation) {
-  if (!this.selectedPersonnel.education) {
-    this.selectedPersonnel.education = [];
-  }
-  this.selectedPersonnel.education.push(newEducation);
-  this.$forceUpdate();
-},
-
-handleMedicalRemoved(medicalId) {
-  this.selectedPersonnel.medicals = this.selectedPersonnel.medicals.filter(m => m.exams_id !== medicalId);
-  this.$forceUpdate();
-},
-
-handleXrayRemoved(xrayId) {
-  this.selectedPersonnel.xrays = this.selectedPersonnel.xrays.filter(x => x.xray_id !== xrayId);
-  this.$forceUpdate();
-},
-
-handleEducationRemoved(educationId) {
-  this.selectedPersonnel.education = this.selectedPersonnel.education.filter(e => e.education_id !== educationId);
-  this.$forceUpdate();
-},
-
-handlePersonelUpdated(updatedPersonnel) {
-  // Update the selected personnel with new data
-  Object.assign(this.selectedPersonnel, updatedPersonnel);
-  // Refresh the main list
-  this.getPersonnel();
-},
-    // Open Personel Info
-viewPersonnel(person) {
-  this.selectedPersonnel = person;
-  this.showPersonelInfo = true;
-},
-
-// Close Personel Info
-closePersonelInfo() {
-  this.showPersonelInfo = false;
-  this.selectedPersonnel = null;
-},
-
-// Handle personnel updates from PersonelInfo component
-handlePersonnelUpdated() {
-  this.getPersonnel(); // Refresh the list to show updated data
-  this.closePersonelInfo();
-},
-
-// Handle project card opening from PersonelInfo
-// openProjectCard(project) {
-//   // You can implement this based on your existing project opening logic
-//   console.log('Open project card:', project);
-//   // this.$emit('open-project-card', project); // If you have a parent handler
-// },
-    toDateOnly(date) {
-      if (!date) return null;
-      return new Date(date).toISOString().split("T")[0]; // "YYYY-MM-DD"
+        // Close PersonelInfo modal only
+    closePersonelInfo() {
+      this.showPersonelInfo = false;
+      this.selectedPersonnel = null;
+      this.loadingPersonnel = false;
     },
-    async getPersonnel() {
-      try {
-        this.loading = true;
-        this.error = false;
-        const response = await axios.get("http://localhost:8000/personel");
-        this.personnel = response.data;
-      } catch (error) {
-        console.error("API failed to load", error);
-        this.error = true;
-      } finally {
-        this.loading = false;
+    // Handle PersonelInfo events with data refresh
+    async handlePersonelUpdated() {
+      if (this.selectedPersonnel) {
+        const freshData = await this.fetchCompletePersonnelData(this.selectedPersonnel.personel_id);
+        if (freshData) {
+          this.selectedPersonnel = freshData;
+        }
+      }
+      this.getProjects();
+    },
+    // All record event handlers to refresh data
+    async handleMedicalCreated() {
+      if (this.selectedPersonnel) {
+        const freshData = await this.fetchCompletePersonnelData(this.selectedPersonnel.personel_id);
+        if (freshData) {
+          this.selectedPersonnel = freshData;
+        }
       }
     },
 
-    async createPersonnel() {
+    async handleXrayCreated() {
+      if (this.selectedPersonnel) {
+        const freshData = await this.fetchCompletePersonnelData(this.selectedPersonnel.personel_id);
+        if (freshData) {
+          this.selectedPersonnel = freshData;
+        }
+      }
+    },
+
+    async handleEducationCreated() {
+      if (this.selectedPersonnel) {
+        const freshData = await this.fetchCompletePersonnelData(this.selectedPersonnel.personel_id);
+        if (freshData) {
+          this.selectedPersonnel = freshData;
+        }
+      }
+    },
+
+    async handleMedicalRemoved() {
+      if (this.selectedPersonnel) {
+        const freshData = await this.fetchCompletePersonnelData(this.selectedPersonnel.personel_id);
+        if (freshData) {
+          this.selectedPersonnel = freshData;
+        }
+      }
+    },
+
+    async handleXrayRemoved() {
+      if (this.selectedPersonnel) {
+        const freshData = await this.fetchCompletePersonnelData(this.selectedPersonnel.personel_id);
+        if (freshData) {
+          this.selectedPersonnel = freshData;
+        }
+      }
+    },
+
+    async handleEducationRemoved() {
+      if (this.selectedPersonnel) {
+        const freshData = await this.fetchCompletePersonnelData(this.selectedPersonnel.personel_id);
+        if (freshData) {
+          this.selectedPersonnel = freshData;
+        }
+      }
+    },
+
+    // Handle project card opening from PersonelInfo
+// Update this method
+async openProjectCardFromPersonel(project) {
+  try {
+    // First get the full project details
+    const response = await axios.get(`http://localhost:8000/projects/${project.project_id}`);
+    const fullProject = response.data;
+    
+    // Close PersonelInfo first
+    this.closePersonelInfo();
+    
+    // Then open project info with the full project data
+    this.selectedProject = fullProject;
+    await this.loadProjectResources(fullProject.project_id);
+    this.showProjectInfo = true;
+  } catch (error) {
+    console.error('Error loading project details:', error);
+    alert('Failed to load project details');
+  }
+},
+
+    async createProject() {
       try {
         this.creating = true;
         
-        if (!this.newPersonnel.personel_name || !this.newPersonnel.personel_surname || !this.newPersonnel.role) {
-          alert('Please fill in all required fields');
+        if (!this.newProject.project_code || !this.newProject.project_name) {
+          alert('Please fill in Project Code and Project Name');
           return;
         }
 
-        const response = await axios.post(
-          "http://localhost:8000/personel/create", 
-          this.newPersonnel
-        );
+        const projectData = {
+          project_code: this.newProject.project_code,
+          project_name: this.newProject.project_name,
+          location: this.newProject.location || null,
+          duration: this.newProject.duration || null,
+          expected_personel: this.newProject.expected_personel || null,
+          crane: this.newProject.crane || 'No',
+          xy_map: this.newProject.xy_map || null,
+          date_start: this.newProject.date_start || null
+        };
+
+        const response = await axios.post("http://localhost:8000/projects/create", projectData);
         
-        this.personnel.push(response.data);
+        this.projects.push(response.data);
         this.closeModals();
-        alert('Personnel created successfully!');
+        alert('Project created successfully!');
         
       } catch (error) {
-        console.error("Failed to create personnel", error);
-        alert('Failed to create personnel. Please try again.');
+        console.error("Failed to create project", error);
+        alert('Failed to create project. Please try again.');
       } finally {
         this.creating = false;
       }
     },
-
-    async updatePersonnel() {
+  handleProjectUpdated() {
+    console.log('Project updated, refreshing data...');
+    // Refresh the projects data
+    this.getProjects();
+    
+    // Also refresh the resources for the current project
+    if (this.selectedProject) {
+      this.loadProjectResources(this.selectedProject.project_id);
+    }
+  },
+    
+    async getProjects() {
       try {
-        this.updating = true;
-        
-        if (!this.editPersonnelData.personel_name || !this.editPersonnelData.personel_surname || !this.editPersonnelData.role) {
-          alert('Please fill in all required fields');
-          return;
-        }
-
-        const response = await axios.patch(
-          `http://localhost:8000/personel/${this.selectedPersonnel.personel_id}/update`,
-          this.editPersonnelData
-        );
-        
-        // Update the personnel in the list
-        const index = this.personnel.findIndex(p => p.personel_id === this.selectedPersonnel.personel_id);
-        if (index !== -1) {
-          this.personnel.splice(index, 1, response.data);
-        }
-        
-        this.closeModals();
-        alert('Personnel updated successfully!');
-        
+        const response = await axios.get("http://localhost:8000/projects");
+        this.projects = response.data;
       } catch (error) {
-        console.error("Failed to update personnel", error);
-        alert('Failed to update personnel. Please try again.');
-      } finally {
-        this.updating = false;
+        console.error('Error fetching projects:', error);
       }
     },
 
-    async deletePersonnel() {
-      if (!confirm('Are you sure you want to delete this personnel? This action cannot be undone.')) {
+    async getProjectPersonnel(projectId) {
+      try {
+        const response = await axios.get(`http://localhost:8000/projects/${projectId}/personel`);
+        return response.data;
+      } catch (error) {
+        console.error('Error fetching project personnel:', error);
+        return [];
+      }
+    },
+
+    async getProjectVehicles(projectId) {
+      try {
+        const response = await axios.get(`http://localhost:8000/projects/${projectId}/vehicles`);
+        return response.data;
+      } catch (error) {
+        console.error('Error fetching project vehicles:', error);
+        return [];
+      }
+    },
+
+    async updateProjectStartDate() {
+      if (!this.selectedProject || !this.selectedDate) {
+        alert('No project or date selected');
         return;
       }
 
+      const projectId = this.selectedProject.project_id;
+      const updateData = {
+        date_start: new Date(this.selectedDate).toISOString().split('T')[0]
+      };
+
+      console.log('PATCH payload:', updateData);
+
       try {
-        this.deleting = true;
-        
-        await axios.post(`http://localhost:8000/personel/${this.selectedPersonnel.personel_id}/remove`);
-        
-        // Remove the personnel from the list
-        this.personnel = this.personnel.filter(p => p.personel_id !== this.selectedPersonnel.personel_id);
-        
+        const response = await axios.patch(`http://localhost:8000/projects/${projectId}/update`, updateData);
+        console.log('Update response:', response.data);
+        await this.getProjects();
         this.closeModals();
-        alert('Personnel deleted successfully!');
-        
       } catch (error) {
-        console.error("Failed to delete personnel", error);
-        alert('Failed to delete personnel. Please try again.');
-      } finally {
-        this.deleting = false;
+        console.error('Error updating project start date:', error.response?.data || error.message);
+        alert('Failed to update project start date');
       }
     },
 
-    // Medical Records API
-    async createMedical() {
-      try {
-        this.creatingMedical = true;
-        this.newMedical.personel_id = this.selectedPersonnel.personel_id;
-        this.newMedical.exam_date = this.toDateOnly(this.newMedical.exam_date);
-
-        const response = await axios.post(
-          "http://localhost:8000/medicals/create", 
-          this.newMedical
-        );
-
-        if (!this.selectedPersonnel.medicals) {
-          this.selectedPersonnel.medicals = [];
-        }
-        this.selectedPersonnel.medicals.push(response.data);
-
-        this.showNewMedicalForm = false;
-        this.resetNewMedical();
-        alert("Medical record created successfully!");
-      } catch (error) {
-        console.error("Failed to create medical record", error);
-        alert("Failed to create medical record. Please try again.");
-      } finally {
-        this.creatingMedical = false;
+    generateDates() {
+      const start = new Date(this.startDate);
+      this.dateRange = [];
+      for (let i = 0; i < this.calendarDays; i++) {
+        const d = new Date(start);
+        d.setDate(start.getDate() + i);
+        this.dateRange.push(d);
       }
     },
+normalizeDate(date) {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}, 
+calculateProjectEndDate(project) {
+  if (!project.date_start || !project.duration) return null;
 
-    async removeMedical(medical) {
-      if (confirm('Are you sure you want to remove this medical record?')) {
-        try {
-          await axios.post(`http://localhost:8000/medicals/${medical.exams_id}/remove`);
-          this.selectedPersonnel.medicals = this.selectedPersonnel.medicals.filter(m => m.exams_id !== medical.exams_id);
-          alert('Medical record removed successfully!');
-        } catch (error) {
-          console.error("Failed to remove medical record", error);
-          alert('Failed to remove medical record. Please try again.');
-        }
+  const start = this.normalizeDate(project.date_start);
+  let workingDays = 1;
+  let current = new Date(start);
+
+  while (workingDays < project.duration) {
+    current.setDate(current.getDate() + 1);
+    if (this.isWorkingDay(current)) workingDays++;
+  }
+
+  return this.normalizeDate(current);
+},
+
+isWorkingDay(date) {
+  const day = date.getDay();
+  return day >= 1 && day <= 5; // Mon–Fri
+},
+
+    getProjectEndDateFormatted(project) {
+      const endDate = this.calculateProjectEndDate(project);
+      return this.formatProjectDate(endDate);
+    },
+
+    formatDateDay(date) {
+      if (!(date instanceof Date) || isNaN(date)) return '';
+      return date.getDate();
+    },
+
+    formatDateWeekday(date) {
+      if (!(date instanceof Date) || isNaN(date)) return '';
+      return date.toLocaleDateString("en-US", { weekday: "short" });
+    },
+
+    formatProjectDate(date) {
+      if (!date) return 'N/A';
+      const dateObj = date instanceof Date ? date : new Date(date);
+      if (!(dateObj instanceof Date) || isNaN(dateObj)) {
+        return 'N/A';
       }
-    },
-
-    // Education Records API
-    async createEducation() {
-      try {
-        this.creatingEducation = true;
-        this.newEducation.personel_id = this.selectedPersonnel.personel_id;
-        this.newEducation.education_date = this.toDateOnly(this.newEducation.education_date);
-
-        const response = await axios.post(
-          "http://localhost:8000/educations/create", 
-          this.newEducation
-        );
-
-        if (!this.selectedPersonnel.education) {
-          this.selectedPersonnel.education = [];
-        }
-        this.selectedPersonnel.education.push(response.data);
-
-        this.showNewEducationForm = false;
-        this.resetNewEducation();
-        alert("Education record created successfully!");
-      } catch (error) {
-        console.error("Failed to create education record", error);
-        alert("Failed to create education record. Please try again.");
-      } finally {
-        this.creatingEducation = false;
-      }
-    },
-
-    async removeEducation(education) {
-      if (confirm('Are you sure you want to remove this education record?')) {
-        try {
-          await axios.post(`http://localhost:8000/educations/${education.education_id}/remove`);
-          this.selectedPersonnel.education = this.selectedPersonnel.education.filter(e => e.education_id !== education.education_id);
-          alert('Education record removed successfully!');
-        } catch (error) {
-          console.error("Failed to remove education record", error);
-          alert('Failed to remove education record. Please try again.');
-        }
-      }
-    },
-
-    // X-Ray Records API
-    async createXray() {
-      try {
-        this.creatingXray = true;
-        this.newXray.personel_id = this.selectedPersonnel.personel_id;
-        this.newXray.xrays_date = this.toDateOnly(this.newXray.xrays_date);
-
-        const response = await axios.post(
-          "http://localhost:8000/xrays/create", 
-          this.newXray
-        );
-
-        if (!this.selectedPersonnel.xrays) {
-          this.selectedPersonnel.xrays = [];
-        }
-        this.selectedPersonnel.xrays.push(response.data);
-
-        this.showNewXrayForm = false;
-        this.resetNewXray();
-        alert("X-Ray record created successfully!");
-      } catch (error) {
-        console.error("Failed to create X-Ray record", error);
-        alert("Failed to create X-Ray record. Please try again.");
-      } finally {
-        this.creatingXray = false;
-      }
-    },
-
-    async removeXray(xray) {
-      if (confirm('Are you sure you want to remove this X-Ray record?')) {
-        try {
-          await axios.post(`http://localhost:8000/xrays/${xray.xray_id}/remove`);
-          this.selectedPersonnel.xrays = this.selectedPersonnel.xrays.filter(x => x.xray_id !== xray.xray_id);
-          alert('X-Ray record removed successfully!');
-        } catch (error) {
-          console.error("Failed to remove X-Ray record", error);
-          alert('Failed to remove X-Ray record. Please try again.');
-        }
-      }
-    },
-
-    // Reset new record forms
-    resetNewMedical() {
-      this.newMedical = {
-        exam_date: '',
-        personel: null
-      };
-    },
-
-    resetNewEducation() {
-      this.newEducation = {
-        education_date: '',
-        first_time: 'Yes',
-        personel: null
-      };
-    },
-
-    resetNewXray() {
-      this.newXray = {
-        xrays_date: '',
-        personel_id: null
-      };
-    },
-
-    // Role-based styling
-    getRoleClass(role) {
-      const roleMap = {
-        'Engineer': 'role-engineer',
-        'Worker': 'role-worker',
-        'Driver': 'role-driver',
-        'Manager': 'role-manager',
-        'Technician': 'role-technician'
-      };
-      return roleMap[role] || 'role-default';
-    },
-
-    // Expiration date calculations based on initial dates
-    getMedicalExpiration(person) {
-      if (!person.medicals || person.medicals.length === 0) return null;
-      const latestMedical = person.medicals.reduce((latest, current) => {
-        const currentDate = new Date(current.exam_date);
-        return currentDate > new Date(latest.exam_date) ? current : latest;
+      return dateObj.toLocaleDateString("en-US", { 
+        month: "short", 
+        day: "numeric"
       });
-      
-      const examDate = new Date(latestMedical.exam_date);
-      examDate.setFullYear(examDate.getFullYear() + 1); // Medical expires after 1 year
-      return examDate.toISOString().split('T')[0];
     },
 
-    getEducationExpiration(person) {
-      if (!person.education || person.education.length === 0) return null;
-      const latestEducation = person.education.reduce((latest, current) => {
-        const currentDate = new Date(current.education_date);
-        return currentDate > new Date(latest.education_date) ? current : latest;
+    formatFullDate(date) {
+      if (!(date instanceof Date) || isNaN(date)) return '';
+      return date.toLocaleDateString("en-US", { 
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
       });
-      
-      const educationDate = new Date(latestEducation.education_date);
-      educationDate.setFullYear(educationDate.getFullYear() + 3); // Education expires after 3 years
-      return educationDate.toISOString().split('T')[0];
     },
 
-    getXrayExpiration(person) {
-      if (!person.xrays || person.xrays.length === 0) return null;
-      const latestXray = person.xrays.reduce((latest, current) => {
-        const currentDate = new Date(current.xrays_date);
-        return currentDate > new Date(latest.xrays_date) ? current : latest;
-      });
-      
-      const xrayDate = new Date(latestXray.xrays_date);
-      xrayDate.setFullYear(xrayDate.getFullYear() + 2); // Xray expires after 2 years
-      return xrayDate.toISOString().split('T')[0];
-    },
-
-    getDaysRemaining(dateString) {
-      if (!dateString) return 'N/A';
+    isToday(date) {
+      if (!(date instanceof Date) || isNaN(date)) return false;
       const today = new Date();
-      const expiryDate = new Date(dateString);
-      const diffTime = expiryDate - today;
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      return diffDays > 0 ? `${diffDays}d` : 'Expired';
+      return date.toDateString() === today.toDateString();
     },
 
-    getDateStatus(dateString) {
-      if (!dateString) return 'no-date';
-      const today = new Date();
-      const expiryDate = new Date(dateString);
-      const diffTime = expiryDate - today;
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      
-      if (diffDays < 0) return 'expired';
-      if (diffDays <= 60) return 'warning';
-      return 'valid';
+    isWeekend(date) {
+      if (!(date instanceof Date) || isNaN(date)) return false;
+      return date.getDay() === 0 || date.getDay() === 6;
     },
 
-    getValidityStatus(person) {
-      const medicalExpiry = this.getMedicalExpiration(person);
-      const educationExpiry = this.getEducationExpiration(person);
-      const xrayExpiry = this.getXrayExpiration(person);
+    isMonthStart(date) {
+      if (!(date instanceof Date) || isNaN(date)) return false;
+      return date.getDate() === 1;
+    },
 
-      // If any required date is missing, consider invalid
-      if (!medicalExpiry || !educationExpiry || !xrayExpiry) {
-        return 'INVALID';
+isActiveOnDate(project, date) {
+  if (!project.date_start) return false;
+
+  const start = this.normalizeDate(project.date_start);
+  const end = this.normalizeDate(this.calculateProjectEndDate(project));
+  const current = this.normalizeDate(date);
+
+  if (!this.isWorkingDay(current)) return false;
+
+  return current >= start && current <= end;
+},
+
+    goToToday() {
+      this.startDate = new Date().toISOString().split('T')[0];
+      this.generateDates();
+    },
+
+    toggleShowAllProjects() {
+      this.showAllProjects = !this.showAllProjects;
+    },
+
+    sortBy(field) {
+      if (this.sortField === field) {
+        this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
+      } else {
+        this.sortField = field;
+        this.sortDirection = 'asc';
       }
-
-      const today = new Date();
-      let allValid = true;
-      let anyAlmost = false;
-
-      [medicalExpiry, educationExpiry, xrayExpiry].forEach(date => {
-        const expiryDate = new Date(date);
-        const diffTime = expiryDate - today;
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        
-        if (diffDays < 0) {
-          allValid = false;
-        } else if (diffDays <= 60) {
-          anyAlmost = true;
-          allValid = false;
-        }
-      });
-
-      if (allValid) return 'VALID';
-      if (anyAlmost) return 'ALMOST';
-      return 'INVALID';
     },
 
-    formatDate(dateString) {
-      if (!dateString) return 'N/A';
-      const options = { year: 'numeric', month: 'short', day: 'numeric' };
-      return new Date(dateString).toLocaleDateString('en-US', options);
+    async onDateClick(project, date) {
+      this.selectedProject = project;
+      this.selectedDate = date;
+      
+      const isActive = this.isActiveOnDate(project, date);
+      
+      if (isActive) {
+        // Clicked on active (green) square - show resources
+        await this.loadProjectResources(project.project_id);
+        this.onProjectClick(project);
+        // this.showResourcesModal = true;
+      } else {
+        // Clicked on inactive square - show date assignment
+        this.showDateAssignmentModal = true;
+      }
     },
 
-    // Modal methods for records
-    openMedicalModal(person) {
-      this.selectedPersonnel = person;
-      this.showMedicalModal = true;
+    async onProjectClick(project) {
+      this.selectedProject = project;
+      
+      // Load resources for the project info
+      await this.loadProjectResources(project.project_id);
+      
+      this.showProjectInfo = true;
     },
 
-    openEducationModal(person) {
-      this.selectedPersonnel = person;
-      this.showEducationModal = true;
+    async loadProjectResources(projectId) {
+      try {
+        const [personnel, vehicles] = await Promise.all([
+          this.getProjectPersonnel(projectId),
+          this.getProjectVehicles(projectId)
+        ]);
+        this.selectedProjectPersonnel = personnel;
+        this.selectedProjectVehicles = vehicles;
+      } catch (error) {
+        console.error('Error loading project resources:', error);
+      }
     },
 
-    openXrayModal(person) {
-      this.selectedPersonnel = person;
-      this.showXrayModal = true;
+  openPersonnelManagement() {
+    // Track which modal we're coming from
+    this.showProjectInfoBeforeChild = this.showProjectInfo;
+    this.showResourcesModalBeforeChild = this.showResourcesModal;
+    
+    this.showResourcesModal = false;
+    this.showProjectInfo = false;
+    this.showPersonnelManagement = true;
+  },
+
+  openVehiclesManagement() {
+    // Track which modal we're coming from
+    this.showProjectInfoBeforeChild = this.showProjectInfo;
+    this.showResourcesModalBeforeChild = this.showResourcesModal;
+    
+    this.showResourcesModal = false;
+    this.showProjectInfo = false;
+    this.showVehiclesManagement = true;
+  },
+
+    handleProjectEdit(project) {
+      console.log('Edit project requested:', project);
+      // You can implement project editing logic here
+      // For now, just close and reopen the project info
+      this.showProjectInfo = false;
+      setTimeout(() => {
+        this.selectedProject = project;
+        this.showProjectInfo = true;
+      }, 100);
     },
 
-    // Modal methods
-    // viewPersonnel(person) {
-    //   this.selectedPersonnel = person;
-    //   this.showViewModal = true;
-    // },
-
-    editPersonnel(person) {
-      this.selectedPersonnel = person;
-      // Populate edit form with current data
-      this.editPersonnelData = {
-        personel_name: person.personel_name,
-        personel_surname: person.personel_surname,
-        role: person.role
+async openPersonnelCard(person) {
+  try {
+    this.loadingPersonnel = true;
+    
+    // Get basic personnel data
+    const personnelResponse = await axios.get(`http://localhost:8000/personel/${person.personel_id}`);
+    
+    // Get personnel's projects with full details
+    const projectsResponse = await axios.get(`http://localhost:8000/personel/${person.personel_id}/projects`);
+    
+    // Get full project details for each assigned project
+    const projectPromises = projectsResponse.data.map(async (project) => {
+      const fullProjectResponse = await axios.get(`http://localhost:8000/projects/${project.project_id}`);
+      return {
+        ...fullProjectResponse.data,
+        date_start: fullProjectResponse.data.date_start,
+        duration: parseInt(fullProjectResponse.data.duration) || 0
       };
-      this.showEditModal = true;
+    });
+    
+    const projects = await Promise.all(projectPromises);
+    
+    // Combine personnel data with projects
+    this.selectedPersonnel = {
+      ...personnelResponse.data,
+      projects: projects // Add projects to personnel data
+    };
+    
+    this.showProjectInfo = false; // Close ProjectInfo
+    this.showPersonelInfo = true; // Open PersonelInfo
+  } catch (error) {
+    console.error("Failed to load personnel data", error);
+    alert('Failed to load personnel details. Please try again.');
+  } finally {
+    this.loadingPersonnel = false;
+  }
+},
+
+
+    openVehicleCard(vehicle, project) {
+      console.log('Open vehicle card:', vehicle, project);
+      // Implement vehicle card view if needed
     },
 
-    closeModals() {
-      this.showCreateModal = false;
-      this.showViewModal = false;
-      this.showEditModal = false;
-      this.showMedicalModal = false;
-      this.showEducationModal = false;
-      this.showXrayModal = false;
-      this.showNewMedicalForm = false;
-      this.showPersonelInfo = false;
-      this.showNewEducationForm = false;
-      this.showNewXrayForm = false;
-      this.selectedPersonnel = null;
-      // Reset form data
-      this.newPersonnel = {
-        personel_name: '',
-        personel_surname: '',
-        role: ''
-      };
-      this.editPersonnelData = {
-        personel_name: '',
-        personel_surname: '',
-        role: ''
-      };
-      this.resetNewMedical();
-      this.resetNewEducation();
-      this.resetNewXray();
+  handleResourcesUpdated() {
+    // Refresh resources data
+    if (this.selectedProject) {
+      this.loadProjectResources(this.selectedProject.project_id);
     }
   },
+
+    closeModals() {
+      // Close all modals completely
+      this.showDateAssignmentModal = false;
+      this.showResourcesModal = false;
+      this.showProjectInfo = false;
+      this.showPersonnelManagement = false;
+      this.showVehiclesManagement = false;
+      this.selectedProject = null;
+      this.selectedDate = null;
+      this.selectedProjectPersonnel = [];
+      this.selectedProjectVehicles = [];
+    },
+
+ closeChildModals() {
+    this.showPersonnelManagement = false;
+    this.showVehiclesManagement = false;
+    
+    // Refresh data when returning to ProjectInfo
+    if (this.selectedProject) {
+      this.loadProjectResources(this.selectedProject.project_id);
+    }
+    
+    // Re-open the appropriate parent modal
+    if (this.showProjectInfoBeforeChild) {
+      this.showProjectInfo = true;
+      this.showProjectInfoBeforeChild = false;
+    } 
+    if (this.showResourcesModalBeforeChild) {
+      this.showResourcesModal = true;
+      this.showResourcesModalBeforeChild = false;
+    }
+  },
+
+  },
   mounted() {
-    this.getPersonnel();
+    this.getProjects();
+    this.generateDates();
   }
-}
+};
 </script>
 
 <style scoped>
-.personel-info-overlay {
-  z-index: 1001; /* Higher than other modals */
+
+/* Search input styles (copied from PersonnelCalendar) */
+.search-group {
+  min-width: 220px;
 }
 
-.personel-info-modal {
-  max-width: 500px;
-  width: 95%;
-  max-height: 90vh;
-  overflow: hidden;
-  padding: 0;
-  background: transparent;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-}
-
-.personel-info-modal ::v-deep .personel-info-card {
-  max-width: none;
-  margin: 0;
-  height: 100%;
-  max-height: 90vh;
-  overflow-y: auto;
-}
-
-/* Ensure modal overlay covers everything */
-.modal-overlay {
-  z-index: 1000;
-  backdrop-filter: blur(5px);
-}
-
-@media (max-width: 768px) {
-  .personel-info-modal {
-    width: 98%;
-    max-width: 98%;
-    height: 95vh;
-    max-height: 95vh;
-  }
-  
-  .personel-info-modal ::v-deep .personel-info-card {
-    border-radius: 0;
-    height: 100%;
-  }
-}
-/* Reuse all the same base styles from Project Dashboard */
-.personnel-page {
-  max-width: 1600px;
-  margin: 0 auto;
-  padding: 20px;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-}
-
-.dashboard-header {
-  text-align: center;
-  margin-bottom: 30px;
-  padding: 30px 20px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  border-radius: 12px;
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
-}
-
-/* Controls and other existing styles remain the same */
-.controls {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 25px;
-  flex-wrap: wrap;
-  gap: 15px;
-  background: white;
-  padding: 20px;
-  border-radius: 10px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
-}
-
-.search-box {
-  flex: 1;
-  min-width: 300px;
-}
-
-.search-box input {
-  width: 100%;
-  padding: 14px 18px;
-  border: 2px solid #e1e5e9;
-  border-radius: 8px;
-  font-size: 1rem;
-  transition: all 0.3s ease;
-  background: #f8f9fa;
-}
-
-.filter-controls {
-  display: flex;
-  gap: 15px;
-  flex-wrap: wrap;
-  align-items: center;
-}
-
-select {
-  padding: 14px 18px;
-  border: 2px solid #e1e5e9;
-  border-radius: 8px;
-  background-color: white;
-  font-size: 1rem;
-  transition: all 0.3s ease;
-  min-width: 150px;
-}
-
-.btn-create {
-  background: #10b981;
-  color: white;
-  padding: 14px 20px;
-  border: none;
-  border-radius: 8px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  white-space: nowrap;
-  font-size: 0.9rem;
-}
-
-/* Table Styles - More compact rows */
-.table-container {
-  background-color: white;
-  border-radius: 12px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-  overflow: hidden;
-  margin-bottom: 30px;
-  border: 1px solid #e2e8f0;
-}
-
-.bordered-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.8rem; /* Smaller font for more compact look */
+.search-input {
+  padding: 6px 8px;
   border: 1px solid #d1d5db;
-}
-
-.bordered-table th {
-  background: linear-gradient(135deg, #4a5568 0%, #2d3748 100%);
-  padding: 8px 6px; /* Reduced padding */
-  text-align: left;
-  font-weight: 600;
-  color: white;
-  border-bottom: 2px solid #d1d5db;
-  border-right: 1px solid #718096;
-  position: sticky;
-  top: 0;
-  white-space: nowrap;
-}
-
-.bordered-table td {
-  padding: 6px 4px; /* Reduced padding for shorter rows */
-  border-bottom: 1px solid #e5e7eb;
-  border-right: 1px solid #e5e7eb;
-  vertical-align: middle; /* Changed to middle for better alignment */
-  height: 45px; /* Fixed height for consistent row height */
-}
-
-.bordered-table tr:hover {
-  background-color: #f8fafc;
-}
-
-.cell-bordered {
-  border-right: 1px solid #e5e7eb !important;
-}
-
-/* Updated Column Widths - More compact without projects column */
-.col-name { width: 90px; }
-.col-surname { width: 100px; }
-.col-role { width: 80px; }
-.col-medical { width: 100px; }
-.col-education { width: 100px; }
-.col-xray { width: 100px; }
-.col-status { width: 80px; }
-.col-actions { width: 120px; min-width: 120px; }
-
-/* Unified Cell Styling for Role, Dates, and Status - More compact */
-.role-cell, .date-cell, .status-cell {
-  text-align: center;
-  padding: 4px 2px; /* Reduced padding */
-  border-radius: 4px; /* Smaller radius */
-  display: flex;
-  flex-direction: column;
-  gap: 1px; /* Reduced gap */
-  min-height: 35px; /* Smaller minimum height */
-  justify-content: center;
-  align-items: center;
-  border: 1px solid transparent;
-}
-
-/* Role Colors - Same style as dates */
-.role-cell {
-  font-size: 0.7rem; /* Smaller font */
-  font-weight: 600;
-}
-
-.role-engineer {
-  background: #e3f2fd;
-  color: #1976d2;
-  border-color: #90caf9;
-}
-
-.role-worker {
-  background: #e8f5e8;
-  color: #2e7d32;
-  border-color: #a5d6a7;
-}
-
-.role-driver {
-  background: #fff3e0;
-  color: #ef6c00;
-  border-color: #ffcc80;
-}
-
-.role-manager {
-  background: #f3e5f5;
-  color: #7b1fa2;
-  border-color: #ce93d8;
-}
-
-.role-technician {
-  background: #e0f2f1;
-  color: #00695c;
-  border-color: #80cbc4;
-}
-
-.role-default {
-  background: #f5f5f5;
-  color: #616161;
-  border-color: #e0e0e0;
-}
-
-.role-text {
-  font-size: 0.65rem; /* Smaller font */
-  font-weight: 600;
-}
-
-/* Date Cell Styling */
-.date-cell.valid {
-  background: #f0fdf4;
-  border: 1px solid #bbf7d0;
-}
-
-.date-cell.warning {
-  background: #fef3c7;
-  border: 1px solid #fcd34d;
-}
-
-.date-cell.expired {
-  background: #fef2f2;
-  border: 1px solid #fecaca;
-}
-
-.date-cell.no-date {
-  background: #f3f4f6;
-  border: 1px solid #d1d5db;
-}
-
-.date {
-  font-weight: 500;
-  color: #2d3748;
-  font-size: 0.7rem; /* Smaller font */
-}
-
-.days-remaining {
-  font-size: 0.6rem; /* Smaller font */
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.date-cell.valid .days-remaining {
-  color: #16a34a;
-}
-
-.date-cell.warning .days-remaining {
-  color: #d97706;
-}
-
-.date-cell.expired .days-remaining {
-  color: #dc2626;
-}
-
-.date-cell.no-date .days-remaining {
-  color: #6b7280;
-}
-
-/* Clickable date cells */
-.clickable {
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.clickable:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-/* Status Cell - Unified with other cells */
-.status-cell {
-  font-size: 0.65rem; /* Smaller font */
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.status-text {
-  font-size: 0.6rem; /* Smaller font */
-}
-
-.status-VALID {
-  background-color: #10b981;
-  color: white;
-  border: 1px solid #059669;
-}
-
-.status-ALMOST {
-  background-color: #f59e0b;
-  color: white;
-  border: 1px solid #d97706;
-}
-
-.status-INVALID {
-  background-color: #ef4444;
-  color: white;
-  border: 1px solid #dc2626;
-}
-
-/* Action Buttons */
-.action-buttons {
-  display: flex;
-  gap: 4px;
-  justify-content: center;
-}
-
-.btn {
-  padding: 5px 6px; /* Reduced padding */
-  border: none;
-  border-radius: 3px; /* Smaller radius */
-  font-size: 0.65rem; /* Smaller font */
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  text-align: center;
-  white-space: nowrap;
-  flex: 1;
-  min-width: 40px; /* Smaller minimum width */
-}
-
-.btn-edit {
-  background: #f59e0b;
-  color: white;
-}
-
-.btn-edit:hover {
-  background: #d97706;
-  transform: translateY(-1px);
-}
-
-.btn-view {
-  background: #3b82f6;
-  color: white;
-}
-
-.btn-view:hover {
-  background: #2563eb;
-  transform: translateY(-1px);
-}
-
-.btn-danger {
-  background: #ef4444;
-  color: white;
-  padding: 8px 16px; /* Smaller padding */
-  font-size: 0.8rem; /* Smaller font */
   border-radius: 4px;
+  font-size: 0.8rem;
+  transition: all 0.2s ease;
+  background: white;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+}
+
+/* Add new button styles */
+.show-all-btn {
+  padding: 6px 12px;
+  background: #6b7280;
+  color: white;
   border: none;
+  border-radius: 4px;
   cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 500;
   transition: all 0.2s ease;
 }
 
-.btn-danger:hover {
-  background: #dc2626;
-  transform: translateY(-1px);
+.show-all-btn:hover {
+  background: #4b5563;
 }
 
-.btn-danger:disabled {
-  background: #9ca3af;
-  cursor: not-allowed;
-  transform: none;
-}
-
-/* Records Modal Styles */
-.records-list {
-  max-height: 300px;
-  overflow-y: auto;
-  margin: 20px 0;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  padding: 10px;
-}
-
-.record-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px;
-  border-bottom: 1px solid #f1f3f4;
-  background: #fafafa;
-  border-radius: 6px;
-  margin-bottom: 8px;
-}
-
-.record-item:last-child {
-  border-bottom: none;
-  margin-bottom: 0;
-}
-
-.record-info {
-  flex: 1;
-  font-size: 0.9rem;
-}
-
-.record-info strong {
-  color: #374151;
-}
-
-.no-records {
-  text-align: center;
-  padding: 20px;
-  color: #6b7280;
-  font-style: italic;
-}
-
-.modal-actions {
-  display: flex;
-  gap: 10px;
-  justify-content: space-between; /* Changed to space-between for consistent close button placement */
-  margin-top: 20px;
-  padding-top: 20px;
-  border-top: 1px solid #e5e7eb;
-}
-
-.btn-add {
-  background: #10b981;
-  color: white;
-  padding: 10px 16px;
-  border: none;
-  border-radius: 6px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.btn-add:hover {
+.show-all-btn.active {
   background: #059669;
 }
 
-.btn-remove {
-  background: #ef4444;
-  color: white;
-  padding: 6px 12px;
-  border: none;
-  border-radius: 4px;
-  font-size: 0.8rem;
-  cursor: pointer;
+.show-all-btn.active:hover {
+  background: #047857;
 }
 
-.btn-remove:hover {
-  background: #dc2626;
-}
-
-/* Modal styles remain the same */
+/* Modal styles */
 .modal-overlay {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.496);
+  background: rgba(0, 0, 0, 0.5);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1634,266 +910,587 @@ select {
 
 .modal-content {
   background: white;
-  position: relative;
-  padding: 30px;
-  border-radius: 12px;
+  border-radius: 8px;
+  padding: 20px;
   max-width: 500px;
   width: 90%;
   max-height: 80vh;
   overflow-y: auto;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.588);
-}
-
-.create-modal h3 {
-  text-align: center;
-  margin-bottom: 25px;
-  color: #374151;
-  font-size: 1.25rem;
-  font-weight: 600;
-}
-
-.create-modal {
-  max-width: 450px;
-  max-height: 90vh;
-  overflow-y: auto;
+  position: relative;
 }
 
 /* .large-modal {
-  max-width: 50%;
+  max-width: 700px;
   width: 50%;
-  max-height: 90vh;
+  padding: 0;
 } */
 
-.create-form {
+.modal-header {
   display: flex;
-  flex-direction: column;
-  gap: 20px;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  border-bottom: 1px solid #e5e7eb;
+  padding-bottom: 15px;
 }
 
-.form-row {
-  display: flex;
-  gap: 15px;
+.modal-header h3 {
+  margin: 0;
+  color: #1f2937;
 }
 
-.form-group {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-}
-
-.form-group label {
-  margin-bottom: 6px;
-  font-weight: 600;
-  color: #374151;
-  font-size: 0.9rem;
-}
-
-.form-group input,
-.form-group select {
-  padding: 12px;
-  border: 2px solid #e5e7eb;
-  border-radius: 6px;
-  font-size: 0.9rem;
-  transition: all 0.3s ease;
-  background: white;
-}
-
-.form-group input:focus,
-.form-group select:focus {
-  outline: none;
-  border-color: #667eea;
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-}
-
-.form-actions {
+.modal-close-btn {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: #6b7280;
+  padding: 0;
+  width: 30px;
+  height: 30px;
   display: flex;
   align-items: center;
-  gap: 12px;
-  justify-content: space-between; /* For delete button on left, other actions on right */
-  margin-top: 20px;
-  padding-top: 20px;
-  border-top: 1px solid #e5e7eb;
-  gap: 20px;
+  justify-content: center;
 }
 
-.form-actions-right {
+.modal-close-btn:hover {
+  color: #374151;
+}
+
+.modal-body {
+  margin-bottom: 20px;
+}
+
+.selected-date {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #059669;
+  text-align: center;
+  margin: 15px 0;
+  padding: 10px;
+  background: #f0fdf4;
+  border-radius: 4px;
+}
+
+.resources-section {
+  margin-bottom: 25px;
+}
+
+.resources-section h4 {
+  margin: 0 0 10px 0;
+  color: #374151;
+  font-size: 1rem;
+}
+
+.resources-list {
+  max-height: 150px;
+  overflow-y: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  padding: 10px;
+}
+
+.resource-item {
   display: flex;
-  gap: 12px;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid #f3f4f6;
 }
 
-.btn-cancel, .btn-close {
+.resource-item:last-child {
+  border-bottom: none;
+}
+
+.resource-name {
+  font-weight: 500;
+  color: #1f2937;
+}
+
+.resource-role, .resource-type {
+  color: #6b7280;
+  font-size: 0.8rem;
+}
+
+.no-resources {
+  color: #9ca3af;
+  font-style: italic;
+  text-align: center;
+  padding: 20px;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  margin-top: 20px;
+}
+
+.btn {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.btn-cancel {
   background: #6b7280;
   color: white;
-  padding: 12px 24px;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  font-weight: 600;
 }
 
-.btn-cancel:hover, .btn-close:hover {
+.btn-cancel:hover {
   background: #4b5563;
 }
 
-.btn-submit {
-  background: #667eea;
+.btn-confirm {
+  background: #059669;
   color: white;
-  padding: 12px 24px;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
+}
+
+.btn-confirm:hover {
+  background: #047857;
+}
+
+.btn-personnel {
+  background: #3b82f6;
+  color: white;
+}
+
+.btn-personnel:hover {
+  background: #2563eb;
+}
+
+.btn-vehicles {
+  background: #8b5cf6;
+  color: white;
+}
+
+.btn-vehicles:hover {
+  background: #7c3aed;
+}
+
+.btn-close {
+  background: #6b7280;
+  color: white;
+}
+
+.btn-close:hover {
+  background: #4b5563;
+}
+
+/* Keep all your existing styles below */
+.calendar-view {
+  max-width: 100%;
+  padding: 24px;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background: #f8fafc;
+  min-height: 100vh;
+}
+
+.calendar-header {
+  background: white;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  margin-bottom: 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border: 1px solid #e2e8f0;
+}
+
+.title {
+  font-size: 1.5rem;
+  margin: 0;
+  color: #1a365d;
   font-weight: 600;
-  transition: all 0.3s ease;
 }
 
-.btn-submit:hover:not(:disabled) {
-  background: #5a67d8;
-  transform: translateY(-1px);
+.header-controls {
+  display: flex;
+  gap: 16px;
+  align-items: center;
 }
 
-.btn-submit:disabled {
-  background: #9ca3af;
-  cursor: not-allowed;
-  transform: none;
-}
-
-/* Loading, error, and empty states remain the same */
-.loading {
-  text-align: center;
-  padding: 60px 20px;
-  font-size: 1.2rem;
-  color: #6c757d;
+.control-group {
   display: flex;
   flex-direction: column;
+  gap: 4px;
+}
+
+.control-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #4a5568;
+}
+
+.input-with-button {
+  display: flex;
+  gap: 4px;
   align-items: center;
-  gap: 15px;
 }
 
-.spinner {
-  width: 40px;
-  height: 40px;
-  border: 4px solid #f3f3f3;
-  border-top: 4px solid #667eea;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
+.days-input, .date-input {
+  padding: 6px 8px;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  transition: all 0.2s ease;
+  width: 70px;
+  background: white;
 }
 
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+.days-input:focus, .date-input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
 }
 
-.error {
-  text-align: center;
-  padding: 60px 20px;
-  background: #fed7d7;
-  border-radius: 12px;
-  margin: 20px 0;
-  color: #c53030;
-  border: 1px solid #feb2b2;
+.refresh-btn, .today-btn {
+  padding: 6px 12px;
+  background: #3b82f6;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
 }
 
-.error-icon {
-  font-size: 3rem;
-  margin-bottom: 15px;
+.refresh-btn:hover, .today-btn:hover {
+  background: #2563eb;
 }
 
-.empty-state {
-  text-align: center;
-  padding: 80px 20px;
-  color: #a0aec0;
+.table-container {
+  max-width: 100%;
+  overflow-x: auto;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  position: relative;
   border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  background: #f7fafc;
 }
 
-.empty-icon {
-  font-size: 4rem;
-  margin-bottom: 20px;
-  opacity: 0.5;
+.calendar-table {
+  width: max-content;
+  border-collapse: collapse;
+  min-width: 100%;
 }
 
-.excel-style-table {
-  border: 1px solid #d0d7e5;
-  border-collapse: separate;
-  border-spacing: 0;
+/* Month Header Styles */
+.month-header {
+  position: sticky;
+  top: 0;
+  z-index: 40;
 }
 
-.excel-style-table th,
-.excel-style-table td {
-  border-right: 1px solid #d0d7e5;
-  border-bottom: 1px solid #d0d7e5;
+.month-header-cell {
+  background: #374151;
+  color: white;
+  font-weight: 600;
+  font-size: 0.8rem;
+  padding: 10px 4px;
+  text-align: center;
+  border-left: 1px solid #4b5563;
 }
 
-.excel-style-table th:first-child,
-.excel-style-table td:first-child {
-  border-left: 1px solid #d0d7e5;
+.month-col {
+  background: #1f2937;
+  color: white;
+  font-weight: 600;
+  font-size: 0.8rem;
+  padding: 10px;
+  text-align: center;
 }
 
-.excel-style-table tr:first-child th {
-  border-top: 1px solid #d0d7e5;
+/* Date Header Styles */
+.date-header {
+  position: sticky;
+  top: 39px; /* Height of month header */
+  z-index: 35;
 }
 
-.excel-style-table tr:hover td {
-  background-color: #f0f7ff;
+.date-header-cell {
+  background: #f9fafb;
+  font-weight: 500;
+  border-left: 1px solid #e5e7eb;
+  border-bottom: 2px solid #e5e7eb;
+  padding: 6px 4px;
+  text-align: center;
+  font-size: 0.7rem;
+  min-width: 40px;
+  max-width: 40px;
+  height: 45px;
+  box-sizing: border-box;
 }
 
-@media (max-width: 1200px) {
-  .table-container {
-    overflow-x: auto;
-  }
-  
-  .bordered-table {
-    min-width: 900px; /* Reduced min-width without projects column */
-  }
+.date-header-cell.today {
+  background: #dbeafe;
+  color: #1e40af;
 }
 
+.date-header-cell.weekend {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+.date-header-cell.month-start {
+  border-left: 2px solid #9ca3af;
+}
+
+.date-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+}
+
+.date-day {
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.date-weekday {
+  font-size: 0.6rem;
+  opacity: 0.8;
+  text-transform: uppercase;
+}
+
+/* Sticky Columns - Fixed width and professional styling */
+.sticky-col {
+  position: sticky;
+  left: 0;
+  background: #f9fafb;
+  z-index: 30;
+  border-right: 1px solid #e5e7eb;
+  transition: all 0.2s ease;
+  width: 120px; /* Fixed width */
+}
+
+.col-code {
+  min-width: 120px;
+  max-width: 120px;
+  left: 0;
+  z-index: 31;
+}
+
+.col-name {
+  min-width: 250px;
+  max-width: 250px;
+  left: 120px;
+  z-index: 32;
+}
+
+.col-duration {
+  min-width: 80px;
+  max-width: 80px;
+  left: 370px;
+  z-index: 33;
+}
+
+/* Interactive sticky columns */
+.sticky-col:hover {
+  background: #f3f4f6;
+  cursor: pointer;
+}
+
+.header-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 8px;
+  font-weight: 600;
+  font-size: 0.75rem;
+  color: #374151;
+}
+
+.sort-indicator {
+  font-size: 0.7rem;
+  color: #6b7280;
+}
+
+/* Body cells */
+.calendar-table tbody td {
+  padding: 4px;
+  text-align: center;
+  font-size: 0.7rem;
+  min-width: 40px;
+  max-width: 40px;
+  transition: all 0.2s ease;
+  border-bottom: 1px solid #e5e7eb;
+  height: 35px;
+  box-sizing: border-box;
+  border-left: 1px solid #e5e7eb;
+}
+
+/* Project Rows */
+.project-row:hover {
+  background: #f9fafb !important;
+}
+
+.project-row:hover .sticky-col {
+  background: #f3f4f6;
+}
+
+/* Project code styling */
+.project-code {
+  font-family: 'Monaco', 'Consolas', monospace;
+  font-weight: 600;
+  color: #1f2937;
+  background: #f3f4f6;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  display: inline-block;
+  transition: all 0.2s ease;
+}
+
+.sticky-col:hover .project-code {
+  background: #e5e7eb;
+}
+
+/* Project info styling */
+.project-info {
+  text-align: left;
+  padding: 0 8px;
+}
+
+.project-name {
+  font-weight: 500;
+  color: #1f2937;
+  display: block;
+  font-size: 0.8rem;
+  line-height: 1.3;
+  margin-bottom: 2px;
+}
+
+.project-date {
+  font-size: 0.7rem;
+  color: #6b7280;
+}
+
+/* Duration styling - Simple */
+.duration-value {
+  font-size: 0.8rem;
+  color: #374151;
+  font-weight: 600;
+}
+
+/* Calendar Cells */
+.calendar-cell {
+  position: relative;
+  background: #ffffff;
+  border-left: 1px solid #e5e7eb;
+  padding: 0;
+}
+
+.calendar-cell.active {
+  background: #10b981;
+  position: relative;
+}
+
+.calendar-cell.active.clickable {
+  cursor: pointer;
+}
+
+.calendar-cell.active.clickable:hover {
+  background: #059669;
+  z-index: 10;
+}
+
+.calendar-cell.inactive {
+  background: #f9fafb;
+}
+
+.calendar-cell.weekend {
+  background: #fef2f2;
+}
+
+.calendar-cell.today {
+  background: #dbeafe;
+}
+
+.cell-content {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Alternating row colors */
+.calendar-table tbody tr:nth-child(even) {
+  background: #fafafa;
+}
+
+.calendar-table tbody tr:nth-child(even) .sticky-col {
+  background: #f3f4f6;
+}
+
+/* Responsive Design */
 @media (max-width: 768px) {
-  .controls {
+  .calendar-header {
     flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
   }
   
-  .search-box {
-    min-width: 100%;
+  .header-controls {
+    justify-content: space-between;
   }
   
-  .dashboard-header {
-    padding: 20px 15px;
+  .sticky-col {
+    width: 100px;
   }
   
-  h1 {
-    font-size: 2rem;
+  .col-code {
+    min-width: 100px;
+    max-width: 100px;
   }
   
-  .action-buttons {
-    flex-direction: row;
-    flex-wrap: wrap;
+  .col-name {
+    min-width: 180px;
+    max-width: 180px;
+    left: 100px;
+  }
+  
+  .col-duration {
+    min-width: 60px;
+    max-width: 60px;
+    left: 280px;
+  }
+  
+  .calendar-table th,
+  .calendar-table td {
+    min-width: 35px;
+    max-width: 35px;
+    padding: 2px;
+    font-size: 0.65rem;
+  }
+  
+  .month-header-cell,
+  .month-col {
+    font-size: 0.7rem;
+    padding: 6px 2px;
+  }
+
+  .modal-actions {
+    flex-direction: column;
   }
   
   .btn {
-    flex: 1;
-    min-width: 60px;
-  }
-  
-  .large-modal {
-    max-width: 90%;
-    width: 90%;
-  }
-  
-  .form-actions {
-    flex-direction: column;
-    gap: 10px;
-  }
-  
-  .form-actions-right {
     width: 100%;
-    justify-content: space-between;
   }
 }
-.modal-overlay .modal-content.add-personnel-form,
-.modal-overlay .modal-content.add-vehicles-form {
-  max-width: 45%;
-  width: 45%;
-  margin-top: 20px;
+
+/* Smooth scrolling */
+.table-container {
+  scroll-behavior: smooth;
 }
 </style>

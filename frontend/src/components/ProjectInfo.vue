@@ -501,7 +501,8 @@ export default {
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
   border: 1px solid #e1e5e9;
   overflow: hidden;
-  max-width: 480px;
+  max-width: 480px !important; /* ← Add !important here */
+  width: 480px !important; /* ← Add explicit width with !important */
   margin: 0 auto;
   font-size: 0.9rem;
   position: relative;
@@ -1011,16 +1012,55 @@ export default {
   background: white;
   border-radius: 12px;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-  width: 90%;
-  max-width: 800px;
+  width: 100%;
+  max-width: 600px;
   max-height: 90vh;
-  overflow: auto;
+  overflow-y: auto;
   position: relative;
+  animation: projectInfoEnter 0.3s ease;
+  padding: 20px;
+  box-sizing: border-box;
 }
 
 .project-info-large-modal {
-  width: 800px;
-  max-width: 90vw;
+  width: 100%;
+  max-width: 600px;
+}
+
+/* Add these new styles to ensure the ProjectCard fits properly */
+.project-info-modal-content :deep(.project-card) {
+  width: 100% !important;
+  max-width: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  box-shadow: none !important;
+  border: none !important;
+}
+
+/* Add these styles to handle form inputs inside the modal */
+.project-info-modal-content :deep(input),
+.project-info-modal-content :deep(select),
+.project-info-modal-content :deep(textarea) {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* Adjust grid layouts inside the modal */
+.project-info-modal-content :deep(.grid),
+.project-info-modal-content :deep(.form-grid) {
+  width: 100%;
+  max-width: 100%;
+  gap: 15px;
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 768px) {
+  .project-info-modal-content :deep(.grid),
+  .project-info-modal-content :deep(.form-grid) {
+    grid-template-columns: 1fr 1fr;
+  }
 }
 
 /* Ensure ProjectCard fills the modal properly */

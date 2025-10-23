@@ -104,44 +104,51 @@
       </div>
     </div>
 
-    <!-- Edit Vehicle Modal -->
-    <div v-if="showEditModal && selectedVehicle" class="modal-overlay">
-      <div class="modal-content create-modal" @click.stop>
-        <h3>Edit Vehicle - {{ selectedVehicle.vehicle }}</h3>
-        <form @submit.prevent="updateVehicle" class="create-form">
-          <div class="form-row">
-            <div class="form-group">
-              <label for="edit_vehicle">Vehicle Name *</label>
-              <input type="text" id="edit_vehicle" v-model="editVehicleData.vehicle" required
-                placeholder="Enter vehicle name">
-            </div>
-            <div class="form-group">
-              <label for="edit_type">Type *</label>
-              <select id="edit_type" v-model="editVehicleData.type" required>
-                <option value="">Select Type</option>
-                <option value="IX">IX</option>
-                <option value="Transit">Transit</option>
-                <option value="Crane">Crane</option>
-              </select>
-            </div>
-          </div>
-
-          <div class="form-actions">
-            <button type="button" class="btn btn-danger" @click="deleteVehicle" :disabled="deleting">
-              {{ deleting ? 'Deleting...' : 'Delete Vehicle' }}
-            </button>
-            <div class="form-actions-right">
-              <button type="button" @click="closeModals" class="btn btn-cancel">
-                Cancel
-              </button>
-              <button type="submit" class="btn btn-submit" :disabled="updating">
-                {{ updating ? 'Updating...' : 'Update Vehicle' }}
-              </button>
-            </div>
-          </div>
-        </form>
+  <!-- Replace the Edit Vehicle Modal section in VehiclesDash.vue -->
+<div v-if="showEditModal && selectedVehicle" class="modal-overlay">
+  <div class="modal-content create-modal" @click.stop>
+    <h3>Edit Vehicle - {{ selectedVehicle.vehicle }}</h3>
+    <form @submit.prevent="updateVehicle" class="create-form">
+      <div class="form-row">
+        <div class="form-group">
+          <label for="edit_vehicle">Vehicle Name *</label>
+          <input 
+            type="text" 
+            id="edit_vehicle" 
+            v-model="editVehicleData.vehicle" 
+            required
+            placeholder="Enter vehicle name"
+          >
+        </div>
+        <div class="form-group">
+          <label for="edit_type">Type *</label>
+          <select id="edit_type" v-model="editVehicleData.type" required>
+            <option value="">Select Type</option>
+            <option value="IX">IX</option>
+            <option value="Transit">Transit</option>
+            <option value="Crane">Crane</option>
+          </select>
+        </div>
       </div>
-    </div>
+
+      <div class="edit-vehicle-actions compact">
+        <div class="edit-vehicle-actions-left">
+          <button type="button" class="btn btn-danger" @click="deleteVehicle" :disabled="deleting">
+            {{ deleting ? 'Deleting...' : 'Delete' }}
+          </button>
+        </div>
+        <div class="edit-vehicle-actions-right">
+          <button type="button" @click="closeModals" class="btn btn-cancel">
+            Cancel
+          </button>
+          <button type="submit" class="btn btn-submit" :disabled="updating">
+            {{ updating ? 'Updating...' : 'Update' }}
+          </button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
 
     <!-- Projects Modal -->
     <div v-if="showProjectsModal && selectedVehicle" class="modal-overlay">
@@ -1011,6 +1018,273 @@ select {
   .form-actions-right {
     width: 100%;
     justify-content: space-between;
+  }
+}
+
+/* New CSS for Edit Vehicle Form Buttons - Compact Version */
+.edit-vehicle-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid #e5e7eb;
+  width: 100%;
+}
+
+.edit-vehicle-actions-left {
+  flex: 1;
+}
+
+.edit-vehicle-actions-right {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+/* Compact button sizing for edit form */
+.edit-vehicle-actions .btn-danger,
+.edit-vehicle-actions .btn-cancel,
+.edit-vehicle-actions .btn-submit {
+  min-width: 120px;
+  padding: 10px 16px;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: center;
+  white-space: nowrap;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Even more compact for tight spaces */
+.edit-vehicle-actions.compact .btn-danger,
+.edit-vehicle-actions.compact .btn-cancel,
+.edit-vehicle-actions.compact .btn-submit {
+  min-width: 110px;
+  padding: 8px 14px;
+  font-size: 0.8rem;
+  height: 36px;
+}
+
+/* Specific button styles */
+.edit-vehicle-actions .btn-danger {
+  background: #ef4444;
+  color: white;
+}
+
+.edit-vehicle-actions .btn-danger:hover:not(:disabled) {
+  background: #dc2626;
+  transform: translateY(-1px);
+}
+
+.edit-vehicle-actions .btn-cancel {
+  background: #6b7280;
+  color: white;
+}
+
+.edit-vehicle-actions .btn-cancel:hover {
+  background: #4b5563;
+  transform: translateY(-1px);
+}
+
+.edit-vehicle-actions .btn-submit {
+  background: #667eea;
+  color: white;
+}
+
+.edit-vehicle-actions .btn-submit:hover:not(:disabled) {
+  background: #5a67d8;
+  transform: translateY(-1px);
+}
+
+.edit-vehicle-actions .btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Responsive design for mobile */
+@media (max-width: 768px) {
+  .edit-vehicle-actions {
+    flex-direction: column;
+    gap: 10px;
+  }
+  
+  .edit-vehicle-actions-left,
+  .edit-vehicle-actions-right {
+    width: 100%;
+  }
+  
+  .edit-vehicle-actions-right {
+    justify-content: space-between;
+  }
+  
+  .edit-vehicle-actions .btn-danger,
+  .edit-vehicle-actions .btn-cancel,
+  .edit-vehicle-actions .btn-submit {
+    min-width: 100px;
+    flex: 1;
+    font-size: 0.8rem;
+    padding: 8px 12px;
+    height: 36px;
+  }
+}
+
+/* For very small screens */
+@media (max-width: 480px) {
+  .edit-vehicle-actions .btn-danger,
+  .edit-vehicle-actions .btn-cancel,
+  .edit-vehicle-actions .btn-submit {
+    min-width: 90px;
+    font-size: 0.75rem;
+    padding: 6px 10px;
+    height: 34px;
+  }
+}
+
+/* Add or update these CSS rules in your <style> section */
+.create-modal h3 {
+  text-align: center;
+  margin-bottom: 25px;
+  color: #374151;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.create-modal {
+  max-width: 450px;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.edit-vehicle-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid #e5e7eb;
+  width: 100%;
+}
+
+.edit-vehicle-actions-left {
+  flex: 1;
+}
+
+.edit-vehicle-actions-right {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+/* Button styles */
+.edit-vehicle-actions .btn-danger,
+.edit-vehicle-actions .btn-cancel,
+.edit-vehicle-actions .btn-submit {
+  min-width: 120px;
+  padding: 10px 16px;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: center;
+  white-space: nowrap;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.edit-vehicle-actions.compact .btn-danger,
+.edit-vehicle-actions.compact .btn-cancel,
+.edit-vehicle-actions.compact .btn-submit {
+  min-width: 110px;
+  padding: 8px 14px;
+  font-size: 0.8rem;
+  height: 36px;
+}
+
+.edit-vehicle-actions .btn-danger {
+  background: #ef4444;
+  color: white;
+}
+
+.edit-vehicle-actions .btn-danger:hover:not(:disabled) {
+  background: #dc2626;
+  transform: translateY(-1px);
+}
+
+.edit-vehicle-actions .btn-cancel {
+  background: #6b7280;
+  color: white;
+}
+
+.edit-vehicle-actions .btn-cancel:hover {
+  background: #4b5563;
+  transform: translateY(-1px);
+}
+
+.edit-vehicle-actions .btn-submit {
+  background: #667eea;
+  color: white;
+}
+
+.edit-vehicle-actions .btn-submit:hover:not(:disabled) {
+  background: #5a67d8;
+  transform: translateY(-1px);
+}
+
+.edit-vehicle-actions .btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .edit-vehicle-actions {
+    flex-direction: column;
+    gap: 10px;
+  }
+  
+  .edit-vehicle-actions-left,
+  .edit-vehicle-actions-right {
+    width: 100%;
+  }
+  
+  .edit-vehicle-actions-right {
+    justify-content: space-between;
+  }
+  
+  .edit-vehicle-actions .btn-danger,
+  .edit-vehicle-actions .btn-cancel,
+  .edit-vehicle-actions .btn-submit {
+    min-width: 100px;
+    flex: 1;
+    font-size: 0.8rem;
+    padding: 8px 12px;
+    height: 36px;
+  }
+}
+
+@media (max-width: 480px) {
+  .edit-vehicle-actions .btn-danger,
+  .edit-vehicle-actions .btn-cancel,
+  .edit-vehicle-actions .btn-submit {
+    min-width: 90px;
+    font-size: 0.75rem;
+    padding: 6px 10px;
+    height: 34px;
   }
 }
 </style>
