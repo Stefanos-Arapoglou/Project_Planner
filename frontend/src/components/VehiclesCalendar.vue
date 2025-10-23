@@ -149,8 +149,7 @@
       </table>
     </div>
 
-    <!-- Project Info Overlay Popup -->
-    <div v-if="showProjectInfo" class="project-info-overlay" @click="handleProjectInfoClose">
+        <div v-if="showProjectInfo" class="project-info-overlay" @click.self="handleProjectInfoClose">
       <div class="project-info-popup-container" @click.stop>
         <ProjectInfo 
           :project="selectedProject"
@@ -168,22 +167,22 @@
     </div>
 
     <!-- Add Personnel Overlay -->
-    <div v-if="showAddPersonnel" class="project-info-overlay" @click="showAddPersonnel = false">
+    <div v-if="showAddPersonnel" class="project-info-overlay" @click.self="closeAddPersonnel">
       <div class="large-popup-container" @click.stop>
         <AddPersonel 
           :project="selectedProjectForEdit"
-          @close="showAddPersonnel = false"
+          @close="closeAddPersonnel"
           @personnelUpdated="handleProjectUpdated"
         />
       </div>
     </div>
 
     <!-- Add Vehicles Overlay -->
-    <div v-if="showAddVehicles" class="project-info-overlay" @click="showAddVehicles = false">
+    <div v-if="showAddVehicles" class="project-info-overlay" @click.self="closeAddVehicles">
       <div class="large-popup-container" @click.stop>
         <AddVehicles 
           :project="selectedProjectForEdit"
-          @close="showAddVehicles = false"
+          @close="closeAddVehicles"
           @vehiclesUpdated="handleProjectUpdated"
         />
       </div>
@@ -343,6 +342,17 @@ export default {
     }
   },
   methods: {
+          closeAddPersonnel() {
+        this.showAddPersonnel = false;
+        this.selectedProjectForEdit = null;
+        document.body.style.overflow = '';
+      },
+
+      closeAddVehicles() {
+        this.showAddVehicles = false;
+        this.selectedProjectForEdit = null;
+        document.body.style.overflow = '';
+      },
     async getVehicles() {
       this.loading = true;
       this.error = null;
@@ -552,12 +562,14 @@ export default {
     },
 
     handleProjectUpdated() {
-      // Refresh all data when project is updated
-      this.getVehicles();
-      this.getProjects();
-      this.handleProjectInfoClose();
-      this.showAddPersonnel = false;
-      this.showAddVehicles = false;
+  // Refresh data but keep current modal open
+  this.getVehicles();
+  this.getProjects();
+
+  // Do NOT close modals automatically
+  // this.handleProjectInfoClose();
+  // this.showAddPersonnel = false;
+  // this.showAddVehicles = false;
     },
 
     handleEditPersonnel(project) {

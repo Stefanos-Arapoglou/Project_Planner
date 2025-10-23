@@ -2,20 +2,29 @@
   <div class="calendar-view">
     <div class="calendar-header">
       <h2 class="title">Project Calendar</h2>
-      <div class="header-controls">
-        <div class="control-group">
-          <label class="control-label">Number of Days:</label>
-          <div class="input-with-button">
-            <input 
-              type="number" 
-              v-model.number="calendarDays" 
-              min="1" 
-              max="365"
-              class="days-input"
-            />
-            <button class="refresh-btn" @click="generateDates">Refresh</button>
-          </div>
+    <div class="header-controls">
+      <div class="control-group search-group">
+        <label class="control-label">Search:</label>
+        <input
+          type="text"
+          v-model="searchQuery"
+          placeholder="Search by code, name, location..."
+         class="search-input"
+        />
+      </div>
+      <div class="control-group">
+        <label class="control-label">Number of Days:</label>
+        <div class="input-with-button">
+          <input 
+            type="number" 
+            v-model.number="calendarDays" 
+            min="1" 
+            max="365"
+            class="days-input"
+          />
+          <button class="refresh-btn" @click="generateDates">Refresh</button>
         </div>
+      </div>
         <div class="control-group">
           <label class="control-label">Start Date:</label>
           <input 
@@ -159,39 +168,7 @@
           <button class="modal-close-btn" @click="closeModals">×</button>
         </div>
         <div class="modal-body">
-          <div class="resources-section">
-            <h4>Assigned Personnel</h4>
-            <div v-if="selectedProjectPersonnel.length > 0" class="resources-list">
-              <div 
-                v-for="person in selectedProjectPersonnel" 
-                :key="person.personel_id"
-                class="resource-item"
-              >
-                <span class="resource-name">{{ person.personel_name }} {{ person.personel_surname }}</span>
-                <span class="resource-role">{{ person.role }}</span>
-              </div>
-            </div>
-            <div v-else class="no-resources">
-              No personnel assigned
-            </div>
-          </div>
 
-          <div class="resources-section">
-            <h4>Assigned Vehicles</h4>
-            <div v-if="selectedProjectVehicles.length > 0" class="resources-list">
-              <div 
-                v-for="vehicle in selectedProjectVehicles" 
-                :key="vehicle.vehicle_id"
-                class="resource-item"
-              >
-                <span class="resource-name">{{ vehicle.vehicle }}</span>
-                <span class="resource-type">{{ vehicle.type }}</span>
-              </div>
-            </div>
-            <div v-else class="no-resources">
-              No vehicles assigned
-            </div>
-          </div>
 
           <div class="modal-actions">
             <button class="btn btn-personnel" @click="openPersonnelManagement">
@@ -224,6 +201,30 @@
       </div>
     </div>
 
+        <!-- Personel Info Modal -->
+    <div v-if="showPersonelInfo" class="modal-overlay personel-info-overlay">
+      <div class="modal-content personel-info-modal" @click.stop>
+
+        <div v-if="loadingPersonnel" class="personel-loading">
+          <div class="spinner"></div>
+          Loading personnel data...
+        </div>
+        <PersonelInfo 
+          v-else-if="selectedPersonnel"
+          :personnel="selectedPersonnel"
+          @close="closePersonelInfo"
+          @personel-updated="handlePersonelUpdated"
+          @medical-created="handleMedicalCreated"
+          @xray-created="handleXrayCreated"
+          @education-created="handleEducationCreated"
+          @medical-removed="handleMedicalRemoved"
+          @xray-removed="handleXrayRemoved"
+          @education-removed="handleEducationRemoved"
+          @open-project-card="openProjectCardFromPersonel"
+        />
+      </div>
+    </div>
+
     <!-- Personnel Management Component -->
     <div v-if="showPersonnelManagement" class="modal-overlay" @click="closeChildModals">
       <div class="modal-content large-modal" @click.stop>
@@ -248,21 +249,26 @@
   </div>
 </template>
 
+
+
 <script>
 import axios from "axios";
 import AddPersonel from "./AddPersonel.vue";
 import AddVehicles from "./AddVehicles.vue";
-import ProjectInfo from "./ProjectInfo.vue"; // Import ProjectInfo
+import ProjectInfo from "./ProjectInfo.vue";
+import PersonelInfo from "./PersonelInfo.vue"; // Import ProjectInfo
 
 export default {
   name: "ProjectCalendar",
   components: {
     AddPersonel, 
     AddVehicles,
-    ProjectInfo // Add to components
+    ProjectInfo,
+    PersonelInfo
   },
   data() {
     return {
+       searchQuery: '',
           showProjectInfoBeforeChild: false,
     showResourcesModalBeforeChild: false,
       projects: [],
@@ -284,16 +290,34 @@ export default {
       selectedProject: null,
       selectedDate: null,
       selectedProjectPersonnel: [],
-      selectedProjectVehicles: []
+      selectedProjectVehicles: [],
+
+          showPersonelInfo: false,
+    selectedPersonnel: null,
+    loadingPersonnel: false
     };
   },
   computed: {
-    filteredProjects() {
-      if (this.showAllProjects) {
-        return this.projects; // Show all projects regardless of date range
+filteredProjects() {
+      // Start with all projects
+      let list = this.projects || [];
+
+      // Apply search filter if present
+      if (this.searchQuery && this.searchQuery.trim() !== '') {
+        const q = this.searchQuery.toLowerCase();
+        list = list.filter(p => {
+          const code = (p.project_code || '').toString().toLowerCase();
+          const name = (p.project_name || '').toString().toLowerCase();
+          const location = (p.location || '').toString().toLowerCase();
+          return code.includes(q) || name.includes(q) || location.includes(q);
+        });
       }
-      
-      return this.projects.filter(project => {
+
+      // If "Show All" is toggled, return the searched list
+      if (this.showAllProjects) return list;
+
+      // Otherwise restrict to projects active within the current date range
+      return list.filter(project => {
         const start = new Date(project.date_start);
         const end = this.calculateProjectEndDate(project);
         return this.dateRange.some(d => d >= start && d <= end);
@@ -355,6 +379,131 @@ export default {
     }
   },
   methods: {
+        // Close PersonelInfo modal only
+    closePersonelInfo() {
+      this.showPersonelInfo = false;
+      this.selectedPersonnel = null;
+      this.loadingPersonnel = false;
+    },
+    // Handle PersonelInfo events with data refresh
+    async handlePersonelUpdated() {
+      if (this.selectedPersonnel) {
+        const freshData = await this.fetchCompletePersonnelData(this.selectedPersonnel.personel_id);
+        if (freshData) {
+          this.selectedPersonnel = freshData;
+        }
+      }
+      this.getProjects();
+    },
+    // All record event handlers to refresh data
+    async handleMedicalCreated() {
+      if (this.selectedPersonnel) {
+        const freshData = await this.fetchCompletePersonnelData(this.selectedPersonnel.personel_id);
+        if (freshData) {
+          this.selectedPersonnel = freshData;
+        }
+      }
+    },
+
+    async handleXrayCreated() {
+      if (this.selectedPersonnel) {
+        const freshData = await this.fetchCompletePersonnelData(this.selectedPersonnel.personel_id);
+        if (freshData) {
+          this.selectedPersonnel = freshData;
+        }
+      }
+    },
+
+    async handleEducationCreated() {
+      if (this.selectedPersonnel) {
+        const freshData = await this.fetchCompletePersonnelData(this.selectedPersonnel.personel_id);
+        if (freshData) {
+          this.selectedPersonnel = freshData;
+        }
+      }
+    },
+
+    async handleMedicalRemoved() {
+      if (this.selectedPersonnel) {
+        const freshData = await this.fetchCompletePersonnelData(this.selectedPersonnel.personel_id);
+        if (freshData) {
+          this.selectedPersonnel = freshData;
+        }
+      }
+    },
+
+    async handleXrayRemoved() {
+      if (this.selectedPersonnel) {
+        const freshData = await this.fetchCompletePersonnelData(this.selectedPersonnel.personel_id);
+        if (freshData) {
+          this.selectedPersonnel = freshData;
+        }
+      }
+    },
+
+    async handleEducationRemoved() {
+      if (this.selectedPersonnel) {
+        const freshData = await this.fetchCompletePersonnelData(this.selectedPersonnel.personel_id);
+        if (freshData) {
+          this.selectedPersonnel = freshData;
+        }
+      }
+    },
+
+    // Handle project card opening from PersonelInfo
+// Update this method
+async openProjectCardFromPersonel(project) {
+  try {
+    // First get the full project details
+    const response = await axios.get(`http://localhost:8000/projects/${project.project_id}`);
+    const fullProject = response.data;
+    
+    // Close PersonelInfo first
+    this.closePersonelInfo();
+    
+    // Then open project info with the full project data
+    this.selectedProject = fullProject;
+    await this.loadProjectResources(fullProject.project_id);
+    this.showProjectInfo = true;
+  } catch (error) {
+    console.error('Error loading project details:', error);
+    alert('Failed to load project details');
+  }
+},
+
+    async createProject() {
+      try {
+        this.creating = true;
+        
+        if (!this.newProject.project_code || !this.newProject.project_name) {
+          alert('Please fill in Project Code and Project Name');
+          return;
+        }
+
+        const projectData = {
+          project_code: this.newProject.project_code,
+          project_name: this.newProject.project_name,
+          location: this.newProject.location || null,
+          duration: this.newProject.duration || null,
+          expected_personel: this.newProject.expected_personel || null,
+          crane: this.newProject.crane || 'No',
+          xy_map: this.newProject.xy_map || null,
+          date_start: this.newProject.date_start || null
+        };
+
+        const response = await axios.post("http://localhost:8000/projects/create", projectData);
+        
+        this.projects.push(response.data);
+        this.closeModals();
+        alert('Project created successfully!');
+        
+      } catch (error) {
+        console.error("Failed to create project", error);
+        alert('Failed to create project. Please try again.');
+      } finally {
+        this.creating = false;
+      }
+    },
   handleProjectUpdated() {
     console.log('Project updated, refreshing data...');
     // Refresh the projects data
@@ -428,29 +577,30 @@ export default {
         this.dateRange.push(d);
       }
     },
+normalizeDate(date) {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}, 
+calculateProjectEndDate(project) {
+  if (!project.date_start || !project.duration) return null;
 
-    calculateProjectEndDate(project) {
-      const startDate = new Date(project.date_start);
-      const workingDays = project.duration || 0;
-      let currentDate = new Date(startDate);
-      
-      if (workingDays <= 1) {
-        return new Date(startDate);
-      }
-      
-      // We already have day 1 (start date), so we need (duration - 1) additional working days
-      let additionalDaysNeeded = workingDays - 1;
-      let daysAdded = 0;
-      
-      while (daysAdded < additionalDaysNeeded) {
-        currentDate.setDate(currentDate.getDate() + 1);
-        if (currentDate.getDay() !== 0 && currentDate.getDay() !== 6) {
-          daysAdded++;
-        }
-      }
-      
-      return new Date(currentDate);
-    },
+  const start = this.normalizeDate(project.date_start);
+  let workingDays = 1;
+  let current = new Date(start);
+
+  while (workingDays < project.duration) {
+    current.setDate(current.getDate() + 1);
+    if (this.isWorkingDay(current)) workingDays++;
+  }
+
+  return this.normalizeDate(current);
+},
+
+isWorkingDay(date) {
+  const day = date.getDay();
+  return day >= 1 && day <= 5; // Mon–Fri
+},
 
     getProjectEndDateFormatted(project) {
       const endDate = this.calculateProjectEndDate(project);
@@ -505,12 +655,17 @@ export default {
       return date.getDate() === 1;
     },
 
-    isActiveOnDate(project, date) {
-      if (!(date instanceof Date) || isNaN(date)) return false;
-      const start = new Date(project.date_start);
-      const end = this.calculateProjectEndDate(project);
-      return date >= start && date <= end && !this.isWeekend(date);
-    },
+isActiveOnDate(project, date) {
+  if (!project.date_start) return false;
+
+  const start = this.normalizeDate(project.date_start);
+  const end = this.normalizeDate(this.calculateProjectEndDate(project));
+  const current = this.normalizeDate(date);
+
+  if (!this.isWorkingDay(current)) return false;
+
+  return current >= start && current <= end;
+},
 
     goToToday() {
       this.startDate = new Date().toISOString().split('T')[0];
@@ -539,7 +694,8 @@ export default {
       if (isActive) {
         // Clicked on active (green) square - show resources
         await this.loadProjectResources(project.project_id);
-        this.showResourcesModal = true;
+        this.onProjectClick(project);
+        // this.showResourcesModal = true;
       } else {
         // Clicked on inactive square - show date assignment
         this.showDateAssignmentModal = true;
@@ -599,10 +755,44 @@ export default {
       }, 100);
     },
 
-    openPersonnelCard(person, project) {
-      console.log('Open personnel card:', person, project);
-      // Implement personnel card view if needed
-    },
+async openPersonnelCard(person) {
+  try {
+    this.loadingPersonnel = true;
+    
+    // Get basic personnel data
+    const personnelResponse = await axios.get(`http://localhost:8000/personel/${person.personel_id}`);
+    
+    // Get personnel's projects with full details
+    const projectsResponse = await axios.get(`http://localhost:8000/personel/${person.personel_id}/projects`);
+    
+    // Get full project details for each assigned project
+    const projectPromises = projectsResponse.data.map(async (project) => {
+      const fullProjectResponse = await axios.get(`http://localhost:8000/projects/${project.project_id}`);
+      return {
+        ...fullProjectResponse.data,
+        date_start: fullProjectResponse.data.date_start,
+        duration: parseInt(fullProjectResponse.data.duration) || 0
+      };
+    });
+    
+    const projects = await Promise.all(projectPromises);
+    
+    // Combine personnel data with projects
+    this.selectedPersonnel = {
+      ...personnelResponse.data,
+      projects: projects // Add projects to personnel data
+    };
+    
+    this.showProjectInfo = false; // Close ProjectInfo
+    this.showPersonelInfo = true; // Open PersonelInfo
+  } catch (error) {
+    console.error("Failed to load personnel data", error);
+    alert('Failed to load personnel details. Please try again.');
+  } finally {
+    this.loadingPersonnel = false;
+  }
+},
+
 
     openVehicleCard(vehicle, project) {
       console.log('Open vehicle card:', vehicle, project);
@@ -658,6 +848,27 @@ export default {
 </script>
 
 <style scoped>
+
+/* Search input styles (copied from PersonnelCalendar) */
+.search-group {
+  min-width: 220px;
+}
+
+.search-input {
+  padding: 6px 8px;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  transition: all 0.2s ease;
+  background: white;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+}
+
 /* Add new button styles */
 .show-all-btn {
   padding: 6px 12px;

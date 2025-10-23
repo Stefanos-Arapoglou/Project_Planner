@@ -84,7 +84,7 @@ export default {
   margin: 0 0 10px 0;
   font-size: 2rem;
   font-weight: 600;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+font-family: 'Lucida Console', monospace;
   color: #1f2937;
 }
 
